@@ -4,23 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "b8fb1b39ccbd8f45",
+        "id": "fe942402caca49f1",
         "type": "tabs",
         "children": [
           {
-            "id": "b9622ea1d27f7937",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "SR/IO.md",
-                "mode": "source",
-                "source": false
-              }
-            }
-          },
-          {
-            "id": "d4bc334281ff62b3",
+            "id": "a2afe36aedc1805d",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -32,7 +20,43 @@
             }
           },
           {
-            "id": "d1d331de7ad27dba",
+            "id": "b9b2a5ed98db6f24",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "CL/CL.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
+            "id": "a9f19a79808aae0c",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "SP/SP.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
+            "id": "fd643e98fe26e976",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "SP/SP.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
+            "id": "c1743a3b12de92b5",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -42,9 +66,33 @@
                 "source": false
               }
             }
+          },
+          {
+            "id": "3c584ea06b741b2d",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "SP/IO.md",
+                "mode": "source",
+                "source": false
+              }
+            }
+          },
+          {
+            "id": "63a4fca8b803fa33",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "SP/Config.md",
+                "mode": "source",
+                "source": false
+              }
+            }
           }
         ],
-        "currentTab": 2
+        "currentTab": 6
       }
     ],
     "direction": "vertical"
@@ -94,7 +142,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 200
   },
   "right": {
     "id": "b3a921572c2c5153",
@@ -104,35 +152,6 @@
         "id": "dfb5dbbdb1161b64",
         "type": "tabs",
         "children": [
-          {
-            "id": "e0048e26d0f25886",
-            "type": "leaf",
-            "state": {
-              "type": "backlink",
-              "state": {
-                "file": "SP/IO.md",
-                "collapseAll": false,
-                "extraContext": false,
-                "sortOrder": "alphabetical",
-                "showSearch": false,
-                "searchQuery": "",
-                "backlinkCollapsed": false,
-                "unlinkedCollapsed": true
-              }
-            }
-          },
-          {
-            "id": "2bdab1a6fc659c9e",
-            "type": "leaf",
-            "state": {
-              "type": "outgoing-link",
-              "state": {
-                "file": "SP/IO.md",
-                "linksCollapsed": false,
-                "unlinkedCollapsed": true
-              }
-            }
-          },
           {
             "id": "e7d630ff59bd58d8",
             "type": "leaf",
@@ -150,7 +169,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "SP/IO.md"
+                "file": "SP/Config.md"
               }
             }
           },
@@ -170,20 +189,27 @@
               "state": {}
             }
           }
-        ],
-        "currentTab": 5
+        ]
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "ribbon": {
     "mostRecentAction": ""
   },
-  "active": "d1d331de7ad27dba",
+  "active": "63a4fca8b803fa33",
   "lastOpenFiles": [
+    "SP/SP.md",
+    "SP/Config.md",
+    "SP/Debug.md",
+    "SP/IO.md",
+    "SP/Log File.md",
+    "SP/SV List.md",
+    "CL/CL.md",
     "CL/IO.md",
-    "SR/IO.md",
-    "SR.md"
+    "CL/Cmd Line.md",
+    "SR/IO.md"
   ]
 }

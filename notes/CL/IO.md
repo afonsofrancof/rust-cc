@@ -1,3 +1,3 @@
 ## Input e Output
 
-- Command Line
+ O output e input, inicialmente, serão feitos através da linha de comandos
