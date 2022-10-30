@@ -1,9 +1,11 @@
-use mylibs::*;
 use regex::Regex;
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::path::Path;
 
+pub fn main(){
+    test_configReader();
+}
 // Como argumentos maybe recebe o domain, o tipo de coiso (MX,A,Ns...)?
 pub fn test_configReader() {
     let request_type = "MX";
