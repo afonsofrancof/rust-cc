@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 mylibs = {path = "./mylibs"}
+regex = "1"
