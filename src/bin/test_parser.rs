@@ -10,7 +10,7 @@ pub fn main(){
 pub fn test_configReader() {
     let request_type = "MX";
 
-    let file_path = Path::new("configFiles").join("example-com.db");
+    let file_path = Path::new("etc").join("example-com.db");
 
     let mut file = File::open(&file_path).unwrap();
     let reader = BufReader::new(file);
