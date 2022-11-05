@@ -3,6 +3,7 @@ pub struct SPConfig{
     entries: Vec<Entry>,
 }
 
+
 pub struct Entry {
     name: String,
     entry_type: EntryType,
