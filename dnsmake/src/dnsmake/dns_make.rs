@@ -32,7 +32,7 @@ pub fn dns_recv(port:i16) -> Result<(DNSMessage,SocketAddr),&'static str>{
     //Falta criar THREAD AQUI!
     //Deserialize data
     let dns_message: DNSMessage = match bincode::deserialize(&mut recv_buf){
-        Err(err) => {println!("{}",err.to_string()); return Err("Could not deserialize the recieved DNSMessage.{err}")},
+        Err(err) => return Err("Could not deserialize the recieved DNSMessage."),
         Ok(dns_message) => dns_message
     };
     Ok((dns_message,src_addr))
