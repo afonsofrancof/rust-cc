@@ -40,6 +40,18 @@ pub enum QueryType{
     PTR,
 }
 
+impl QueryType{
+    pub fn to_string(&self) -> &'static str{
+        match self{
+            QueryType::NS => "NS",
+            QueryType::A => "A",
+            QueryType::CNAME => "CNAME",
+            QueryType::MX => "MX",
+            QueryType::PTR => "PTR",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DNSSingleResponse {
     pub name: String,

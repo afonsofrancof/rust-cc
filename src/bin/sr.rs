@@ -1,8 +1,8 @@
-use dnssend;
+use dnsmake::dns_message_struct::{DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType};
+use dnsmake::dns_make::dns_recv;
 fn main(){
-    let test = dnssend::dnssend("google.com".to_string(), "A".to_string(), "127.0.0.1".to_string());
-    match test{
-        Err(err) => panic!("{err}"),
-        _ => ()
-    }
+    match dns_recv(5454){
+        Ok(value) => (),
+        Err(err) => println!("{}",err.to_string())
+    };
 }
