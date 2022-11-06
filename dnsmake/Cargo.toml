@@ -1,18 +1,15 @@
 [package]
-name = "rust-cc"
+name = "dnsmake"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-name = "data_structs"
-path = "./libs/data_structs/mod.rs"
+name="dnssend"
+path="./src/dnssend.rs"
 
 [dependencies]
-regex = "1"
-clap = "4.0.19"
 rand = "0.8.5"
-serde = {version="1.0.147",features=["derive"]}
+serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
-dnsmake = {path = "./dnsmake"}
+

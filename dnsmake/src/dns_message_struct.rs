@@ -48,8 +48,3 @@ pub struct DNSSingleResponse {
     pub ttl: u32,
 }
 
-impl DNSMessage {
-        pub fn get_message_id(&self) -> u16{
-            self.header.message_id
-        }
-}
