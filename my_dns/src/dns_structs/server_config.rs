@@ -1,4 +1,4 @@
-pub struct SPConfig{
+pub struct ServerConfig{
     domain_name: String,
     entries: Vec<Entry>,
 }
