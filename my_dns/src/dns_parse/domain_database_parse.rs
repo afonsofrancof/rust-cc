@@ -113,24 +113,24 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         };
     }
 
-    // Prints de Debug temporario
-    println!("SOA Entries Registadas");
+    // // Prints de Debug temporario
+    // println!("SOA Entries Registadas");
 
-    for (key, val) in soa_entries.iter() {
-        println!("{} {} {}", val.name, key, val.ttl);
-    }
+    // for (key, val) in soa_entries.iter() {
+    //     println!("{} {} {}", val.name, key, val.ttl);
+    // }
 
-    println!("Entries Registadas");
+    // println!("Entries Registadas");
 
-    for (_key, val) in entries.iter() {
-        for entry in val {
-            println!(
-                "{} {} {} {}",
-                entry.name, entry.entry_type, entry.value, entry.ttl
-            );
-        }
-        println!("-------");
-    }
+    // for (_key, val) in entries.iter() {
+    //     for entry in val {
+    //         println!(
+    //             "{} {} {} {}",
+    //             entry.name, entry.entry_type, entry.value, entry.ttl
+    //         );
+    //     }
+    //     println!("-------");
+    // }
 
     Ok(DomainDatabase {
         config_list: soa_entries,

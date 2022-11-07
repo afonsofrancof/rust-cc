@@ -1,4 +1,6 @@
-use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DNSMessage {
@@ -14,25 +16,24 @@ pub struct DNSMessageHeaders {
     pub number_of_values: Option<u8>,
     pub number_of_authorities: Option<u8>,
     pub number_of_extra_values: Option<u8>,
-
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DNSMessageData {
     pub query_info: DNSQueryInfo,
-    pub response_values: Option<Vec<DNSSingleResponse>>,
-    pub authorities_values: Option<Vec<DNSSingleResponse>>,
-    pub extra_values: Option<Vec<DNSSingleResponse>>,
+    pub response_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
+    pub authorities_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
+    pub extra_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DNSQueryInfo {
     pub name: String,
     pub type_of_value: Vec<QueryType>,
-}    
+}
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum QueryType{
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum QueryType {
     NS,
     A,
     CNAME,
@@ -40,9 +41,9 @@ pub enum QueryType{
     PTR,
 }
 
-impl QueryType{
-    pub fn to_string(&self) -> &'static str{
-        match self{
+impl QueryType {
+    pub fn to_string(&self) -> &'static str {
+        match self {
             QueryType::NS => "NS",
             QueryType::A => "A",
             QueryType::CNAME => "CNAME",
@@ -55,8 +56,7 @@ impl QueryType{
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DNSSingleResponse {
     pub name: String,
-    pub type_of_value: u16,
+    pub type_of_value: String,
     pub value: String,
     pub ttl: u32,
 }
-

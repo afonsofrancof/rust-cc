@@ -35,7 +35,7 @@ fn main() {
 
     database.insert("example.com".to_string(), example_db);
 
-    match dns_recv::recv(5454) {
+    match dns_recv::recv(5454, &database) {
         Ok(value) => (),
         Err(err) => println!("{}", err.to_string()),
     };

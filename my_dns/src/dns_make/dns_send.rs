@@ -5,8 +5,8 @@ use std::net::{SocketAddr, UdpSocket};
 pub fn send(
     dns_message: DNSMessage,
     server_ip: String,
-    server_port: i16,
-) -> Result<(), &'static str> {
+    server_port: u16,
+) -> Result<u16, &'static str> {
     //Build DNSMessage structure
     //Socket
     //Create an outgoing socket
@@ -16,7 +16,7 @@ pub fn send(
     let dns_message_bytes: &[u8] = &dns_message_serialized;
     //Send DNSMessage to the Dns Server
     match outgoing_socket.send_to(dns_message_bytes, format!("{server_ip}:{server_port}")) {
-        Ok(..) => return Ok(()),
+        Ok(..) => return Ok(outgoing_socket.local_addr().unwrap().port()),
         Err(..) => return Err("Could not send DNS request to the server."),
     };
 }
