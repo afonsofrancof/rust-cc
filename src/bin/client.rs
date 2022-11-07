@@ -9,7 +9,7 @@ use std::net::UdpSocket;
 fn main() {
     let dns_query_info = DNSQueryInfo {
         name: "example.com".to_string(),
-        type_of_value: vec![QueryType::A, QueryType::NS],
+        type_of_value: vec![QueryType::A, QueryType::NS,QueryType::MX],
     };
     let dns_message_data = DNSMessageData {
         query_info: dns_query_info,
