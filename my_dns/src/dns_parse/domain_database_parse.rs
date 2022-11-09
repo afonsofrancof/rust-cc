@@ -1,9 +1,8 @@
 use crate::dns_structs::domain_database_struct::{DomainDatabase, Entry};
-use regex::{Match, Regex};
+use regex::Regex;
 use std::collections::HashMap;
-use std::default;
 use std::fs::File;
-use std::io::{prelude::*, BufReader};
+use std::io::prelude::*;
 use std::path::Path;
 
 pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
@@ -55,10 +54,10 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     for cap in regex_soa.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
         let mut name: String = cap[1].to_string();
-        let mut entry_type: String = cap[2].to_string();
-        let mut value: String = cap[3].to_string();
+        let entry_type: String = cap[2].to_string();
+        let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
-        let mut priority: Option<u16> = None;
+        let priority: Option<u16> = None;
 
         for (variable, value) in variables.iter() {
             name = name.replace(variable, value);
@@ -83,10 +82,10 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     for cap in regex_entry.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
         let mut name: String = cap[1].to_string();
-        let mut entry_type: String = cap[2].to_string();
-        let mut value: String = cap[3].to_string();
+        let entry_type: String = cap[2].to_string();
+        let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
-        let mut priority: Option<u16> = None;
+        let priority: Option<u16> = None;
 
         for (variable, value) in variables.iter() {
             name = name.replace(variable, value);
