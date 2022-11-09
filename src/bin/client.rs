@@ -30,14 +30,16 @@ fn main() {
         data: dns_message_data,
     };
 
-    let my_port = match dns_send::send(dns_message, "127.0.0.1".to_string(), 5454) {
+
+    let mut recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+
+    let my_port = match dns_send::send(dns_message, &recv_socket) {
         Err(err) => panic!("{err}"),
         Ok(port) => port,
     };
 
-    let recv_socket = UdpSocket::bind(format!("127.0.0.1:{}", my_port)).unwrap();
     let mut buf = [0; 1000];
-    let (_, _) = recv_socket.recv_from(&mut buf).unwrap();
+    let _ = recv_socket.recv_from(&mut buf).unwrap();
     let dns_recv_message: DNSMessage = bincode::deserialize(&mut buf).unwrap();
 
     for (entry_type, entry_vector) in dns_recv_message.data.response_values.unwrap().iter() {
