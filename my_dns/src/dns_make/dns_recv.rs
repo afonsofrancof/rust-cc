@@ -73,8 +73,11 @@ fn client_handler(
     }
 
     dns_message.data.response_values = Some(response_map);
-
-    let _port = dns_send::send(dns_message, src_addr.ip().to_string(), src_addr.port());
+    let addr = src_addr.ip();
+    let port = src_addr.port();
+    let send_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let destination = format!("{}:{}",addr,port);
+    let _port = dns_send::send(dns_message, &send_socket,destination);
 
     Ok(true)
 }

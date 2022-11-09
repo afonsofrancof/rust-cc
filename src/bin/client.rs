@@ -33,7 +33,7 @@ fn main() {
 
     let mut recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
-    let my_port = match dns_send::send(dns_message, &recv_socket) {
+    let my_port = match dns_send::send(dns_message, &recv_socket,"127.0.0.1:5454".to_string()) {
         Err(err) => panic!("{err}"),
         Ok(port) => port,
     };

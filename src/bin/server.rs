@@ -14,19 +14,28 @@ fn main() {
         .author("Grupo 11")
         .version("1.0.0")
         .about("A CLI tool to make DNS requests")
-        .subcommand(
-            Command::new("type")
-                .short_flag('t')
-                .long_flag("type")
-                .about("Define the type of server to start")
+        .subcommands([
+            Command::new("primary")
+                .short_flag('p')
+                .long_flag("primary")
+                .about("Starts the server as the primary DNS server to a domain")
                 .args([
-                    Arg::new("primary")
-                        .help("Starts the server as the primary DNS server to a domain"),
-                    Arg::new("secondary")
-                        .help("Starts the server as a secondary DNS server to a domain"),
-                    Arg::new("no-domain").help("Starts the server without any owned domain"),
+                    Arg::new("domain")
+                        .help("Domain name to serve"),
                 ]),
-        )
+            Command::new("secondary")
+                .short_flag('s')
+                .long_flag("secondary")
+                .about("Starts the server as the secondary DNS server to a domain")
+                .args([
+                    Arg::new("domain")
+                        .help("Domain name to serve")
+                ]),
+            Command::new("resolver")
+                .short_flag('r')
+                .long_flag("resolver")
+                .about("Starts the server as a DNS resolver")
+        ])
         .get_matches();
 
     let mut database: HashMap<String, DomainDatabase> = HashMap::new();
