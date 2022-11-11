@@ -1,6 +1,6 @@
 use crate::dns_structs::dns_message::*;
 use bincode;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{UdpSocket};
 
 pub fn send(
     dns_message: DNSMessage,

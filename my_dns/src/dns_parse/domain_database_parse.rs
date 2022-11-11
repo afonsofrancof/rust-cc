@@ -7,7 +7,7 @@ use std::path::Path;
 
 pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     // Abrir o ficheiro de database para leitura
-    let mut file = match File::open(Path::new("etc").join(file_path).as_path()) {
+    let mut file = match File::open(file_path) {
         Err(_err) => return Err("GEY"),
         Ok(file) => file,
     };

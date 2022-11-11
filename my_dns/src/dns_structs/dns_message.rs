@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessage {
     pub header: DNSMessageHeaders,
     pub data: DNSMessageData,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct DNSMessageHeaders {
     pub message_id: u16,
     pub flags: u8,
@@ -18,7 +18,7 @@ pub struct DNSMessageHeaders {
     pub number_of_extra_values: Option<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessageData {
     pub query_info: DNSQueryInfo,
     pub response_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
@@ -26,7 +26,7 @@ pub struct DNSMessageData {
     pub extra_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DNSQueryInfo {
     pub name: String,
     pub type_of_value: Vec<QueryType>,
@@ -53,7 +53,7 @@ impl QueryType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DNSSingleResponse {
     pub name: String,
     pub type_of_value: String,

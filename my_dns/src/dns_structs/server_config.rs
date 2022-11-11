@@ -1,19 +1,13 @@
+use std::collections::HashMap;
+
 pub struct ServerConfig{
-    domain_name: String,
-    entries: Vec<Entry>,
+    pub domain_name: String,
+    pub domain_db: String,
+    pub domain_ss: Vec<String>,
+    pub server_dd: HashMap<String,String>,
+    pub domain_log: String,
+    pub all_log: String,
+    pub st_db: String
 }
 
 
-pub struct Entry {
-    name: String,
-    entry_type: EntryType,
-    value: String,
-}
-
-pub enum EntryType{
-    DB,
-    SS,
-    DD,
-    LG,
-    ST
-}

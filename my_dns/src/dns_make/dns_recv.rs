@@ -49,7 +49,10 @@ fn client_handler(
     let domain = dns_message.data.query_info.name.clone();
     let query_types = dns_message.data.query_info.type_of_value.clone();
 
-    let domain_database = database.get(&domain).unwrap();
+    let domain_database = match database.get(&domain){
+       Some(domain_db) => domain_db, 
+        None => panic!("{}'s database not found in memory",domain)
+    };
 
     let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
 
