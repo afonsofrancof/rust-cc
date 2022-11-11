@@ -73,7 +73,7 @@ fn main() {
                 }
                let thread_handle = thread::Builder::new()
                     .name(format!("sp_{}",domain.clone()))
-                    .spawn(move || start_sp());
+                    .spawn(move || start_sp(main_queue_shared.get(&domain.to_owned()).unwrap()));
                thread_list.push(thread_handle);
             }
         },
