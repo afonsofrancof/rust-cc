@@ -5,7 +5,7 @@ use queues::*;
 
 pub fn start_sp(domain_name:String,config_dir:String,receiver: Receiver<DNSMessage>){
 
-    let mut config: ServerConfig;
+    let config: ServerConfig;
 
     match Path::new(&config_dir).join(domain_name.clone().replace(".", "-").add(".conf")).to_str(){
         Some(path) => match server_config_parse::get(path.to_string()){
@@ -20,5 +20,6 @@ pub fn start_sp(domain_name:String,config_dir:String,receiver: Receiver<DNSMessa
             Err(err) => panic!("{err}"),
             Ok(ok) => ok
         };
+        println!("SP received query of {}",dns_message.data.query_info.name);
     }
 }
