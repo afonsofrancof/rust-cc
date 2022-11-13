@@ -1,19 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use core::panic;
+use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::Add;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::thread::{JoinHandle,Builder, self};
+use std::net::UdpSocket;
+use std::sync::mpsc::{channel, Sender};
+use std::thread::{JoinHandle,Builder};
 use my_dns::dns_components::sp::start_sp;
-use queues::*;
 use clap::*;
-use my_dns::dns_make::dns_recv;
-use my_dns::dns_parse::{domain_database_parse,server_config_parse};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
-use my_dns::dns_structs::domain_database_struct::DomainDatabase;
-use my_dns::dns_structs::server_config::ServerConfig;
+use rand::seq::IteratorRandom;
 
 fn main() {
     let arguments = Command::new("server")
@@ -22,6 +18,7 @@ fn main() {
         .about("A CLI tool to make DNS requests")
         .args([
             Arg::new("primary")
+                .action(ArgAction::Append)
                 .short('p')
                 .long("primary")
                 .help("Creates a primary DNS server to a domain"),
@@ -39,53 +36,81 @@ fn main() {
         ])
         .get_matches();
     
+    struct ServerThreads{
+        sp: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)>,
+        ss: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)>,
+        sr: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)>
+    }
+
+    let mut sp_threads: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)> = HashMap::new(); 
+    let mut ss_threads: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)> = HashMap::new(); 
+    let mut sr_threads: HashMap<String,(JoinHandle<()>,Sender<DNSMessage>)> = HashMap::new(); 
+    
+    let mut server_threads = ServerThreads{sp:sp_threads,ss:ss_threads,sr:sr_threads};
 
 
-    let mut main_queue: HashMap<String,Queue<DNSMessage>> = HashMap::new();
-    let main_queue_shared = Arc::new(main_queue);
-
-    let mut thread_list: Vec<_>= Vec::new();
-
-
-    let mut primary_databases: HashMap<String, DomainDatabase> = HashMap::new();
-
-    let mut configs: HashMap<String,ServerConfig> = HashMap::new();
-
-    let mut config_dir = match arguments.get_one::<String>("config_dir"){
+    let config_dir = match arguments.get_one::<String>("config_dir"){
         Some(config_dir_arg) => config_dir_arg,
         None => {panic!("No config directory specified")}
     };
-
     match arguments.get_many::<String>("primary"){
         Some(domains) => {
             for domain in domains{
-                match Path::new(&config_dir).join(domain.clone().replace(".", "-").add(".conf")).to_str(){
-                    Some(path) => match server_config_parse::get(path.to_string()){
-                                    Ok(config) => configs.insert(domain.to_owned(), config),
-                                    Err(err) => panic!("{err}")
-                                },
-                    None => {panic!("No config file found for the domain {}",domain)}
-                };    
-                let database_path = &configs.get(&domain.to_owned()).unwrap().domain_db;
-                match domain_database_parse::get(database_path.to_owned()){
-                    Ok(database) => {primary_databases.insert(domain.to_owned(), database);},
-                    Err(err) => panic!("{err}")
-                }
-               let thread_handle = thread::Builder::new()
-                    .name(format!("sp_{}",domain.clone()))
-                    .spawn(move || start_sp(main_queue_shared.get(&domain.to_owned()).unwrap()));
-               thread_list.push(thread_handle);
+                let (sender,receiver) = channel::<DNSMessage>();
+                let config_dir_cloned = config_dir.to_owned();
+                let domain_name_cloned = domain.to_owned();
+                let thread_builder = Builder::new().name(format!("SP_{}",domain));
+                let thread_handle = thread_builder.spawn(move || start_sp(domain_name_cloned,config_dir_cloned,receiver)).unwrap();
+                server_threads.sp.insert(domain.to_owned(),(thread_handle,sender));
+                
             }
         },
-        _ => ()
-    }
-   
-    match dns_recv::recv(5454, &primary_databases) {
-        Ok(value) => (),
-        Err(err) => println!("{}", err.to_string()),
+        None => println!("No primary domains received")
     };
 
-    for thrd in thread_list{
-        thrd.expect("THREAD error? I guess");
+    let main_socket = match UdpSocket::bind("127.0.0.1:5454"){
+        Ok(socket) => socket,
+        Err(err) => panic!("{err}")
+    };
+
+    loop{
+        
+        
+        let mut main_buffer = [0;1000];
+        let (num_of_bytes,src_addr) = match main_socket.recv_from(&mut main_buffer){
+            Ok(nob_sa) => nob_sa,
+            Err(_) => continue
+        };
+
+        let incoming_dns_query : DNSMessage = match bincode::deserialize(&main_buffer.to_vec()){
+            Ok(dns_message) => dns_message,
+            Err(err) => {println!("Malformed query received");continue}
+        };
+
+        let mut rng = rand::thread_rng();
+
+        let (_,thread_query_sender) = match server_threads.sp.get(&incoming_dns_query.data.query_info.name){
+            Some(handle_and_sender) => handle_and_sender,
+            None => match server_threads.ss.get(&incoming_dns_query.data.query_info.name) {
+                Some(handle_and_sender) => handle_and_sender,
+                None => match server_threads.sr.values().choose(&mut rng) {
+                    Some(handle_and_sender) => handle_and_sender,
+                    None => {println!("No component can answer your query");continue}
+                }
+            } 
+        };
+        
+        match thread_query_sender.send(incoming_dns_query){
+           Ok(_) => continue,
+           Err(_err) => println!("Thread has closed it's receiver end of the channel")
+        };
+        
+
+
     }
+        
 }
+
+
+
+
