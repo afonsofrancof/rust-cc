@@ -1,25 +1,41 @@
-use std::{path::{Path, self}, sync::mpsc::Receiver, hash::Hash, collections::HashMap, ops::Add};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    ops::Add,
+    path::{self, Path},
+    sync::mpsc::Receiver,
+};
 
-use crate::{dns_structs::{domain_database_struct::DomainDatabase, server_config::ServerConfig, dns_message::{DNSMessage}}, dns_parse::server_config_parse};
+use crate::{
+    dns_parse::{domain_database_parse, server_config_parse},
+    dns_structs::{
+        dns_message::DNSMessage, domain_database_struct::DomainDatabase,
+        server_config::ServerConfig,
+    },
+};
 use queues::*;
 
-pub fn start_sp(domain_name:String,config_dir:String,receiver: Receiver<DNSMessage>){
-
+pub fn start_sp(domain_name: String, config: ServerConfig, receiver: Receiver<DNSMessage>) {
     let config: ServerConfig;
+    let database: DomainDatabase;
 
-    match Path::new(&config_dir).join(domain_name.clone().replace(".", "-").add(".conf")).to_str(){
-        Some(path) => match server_config_parse::get(path.to_string()){
-            Ok(config_parsed) => config = config_parsed,
-            Err(err) => panic!("{err}")
-        },
-        None => {panic!("no config file found for the domain_name {}",domain_name)}
+    database = match domain_database_parse::get(config.domain_db) {
+        Ok(db) => db,
+        Err(err) => panic!("{err}"),
     };
 
-    loop{
-        let dns_message = match receiver.recv(){
+    loop {
+        let dns_message = match receiver.recv() {
             Err(err) => panic!("{err}"),
-            Ok(ok) => ok
+            Ok(ok) => ok,
         };
-        println!("SP received query of {}",dns_message.data.query_info.name);
+
+        match config.server_dd.get(dns_message.data.query_info.name){
+            Some(ip) => match ip.as_str(){
+                "127.0.0.1" =>  
+            }
+            None =>  
+        }
+
     }
 }
