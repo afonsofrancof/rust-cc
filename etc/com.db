@@ -1,0 +1,21 @@
+# DNS database file for domain com
+
+@ DEFAULT com.
+TTL DEFAULT 86400
+
+@ SOASP ns1.com. TTL
+@ SOAADMIN dns\.admin.com. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+#Name Server do com.
+@ NS ns1.com. TTL
+#Name Server do test.com.
+test.@ NS ns1.test.com. TTL
+
+#IP do nameserver do test.com.
+ns1.test A 10.0.0.16 TTL
+#IP do nameserver do com.
+ns1 A 127.0.0.1 TTL
