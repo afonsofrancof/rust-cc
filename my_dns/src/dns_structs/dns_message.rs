@@ -22,8 +22,8 @@ pub struct DNSMessageHeaders {
 pub struct DNSMessageData {
     pub query_info: DNSQueryInfo,
     pub response_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
-    pub authorities_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
-    pub extra_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
+    pub authorities_values: Option<Vec<DNSSingleResponse>>,
+    pub extra_values: Option<Vec<DNSSingleResponse>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
