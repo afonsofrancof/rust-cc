@@ -9,20 +9,33 @@ use crate::{
 };
 use queues::*;
 
-pub fn start_sp(domain_name: String, config: ServerConfig, receiver: Receiver<DNSMessage>) {
-    let config: ServerConfig;
+pub fn start_sp(config_path: String) {
     let database: DomainDatabase;
-
-    database = match domain_database_parse::get(config.domain_db) {
-        Ok(db) => db,
-        Err(err) => panic!("{err}"),
+    
+   // parsing da config 
+    let config: ServerConfig = match server_config_parse::get(config_path) {
+        Ok(config) => config,
+        Err(err) => panic!("Server config path not found!")
     };
 
+    // parse dbs e afins 
+
+
     loop {
-        let dns_message = match receiver.recv() {
-            Err(err) => panic!("{err}"),
-            Ok(ok) => ok,
-        };
+        
+        match queried_domain_sp{
+            Some(entry) => {
+                let forward_socket = match UdpSocket::bind("127.0.0.1".to_string().add(config.)){
+                    Ok(socket) => socket,
+                    Err(err) => {println!("Could not open socket to contact subdomain's SP");continue;}
+                };   
+                   
+            },
+            None => ()
+        }
+
+
+
         let queried_domain = dns_message.data.query_info.name;
         let queried_domain_sp = match database.entry_list.get("NS") {
             Some(ns_list) => {
@@ -35,17 +48,7 @@ pub fn start_sp(domain_name: String, config: ServerConfig, receiver: Receiver<DN
                     }
             },
             None => {println!("No NS found for {}",queried_domain);None}
-        }
+        };
         
-        match queried_domain_sp{
-            Some(entry) => {
-                let forward_socket = match UdpSocket::bind("127.0.0.1:0"){
-                    Ok(socket) => socket,
-                    Err(err) => {println!("Could not open socket to contact subdomain's SP");continue;}
-                };   
-                   
-            },
-            None => ()
-        }
     }
 }
