@@ -48,7 +48,7 @@ fn main() {
 
     let input_types = match arguments.get_one::<String>("query_types") {
         Some(name) => name,
-        None => panic!("No domain provided."),
+        None => panic!("No query types provided."),
     }
     .split(',');
 
@@ -60,7 +60,7 @@ fn main() {
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(e) => {
-                panic!("Input invalido: {}", qtype);
+                panic!("Invalid Query Type Input: {}", qtype);
             }
         };
     }
