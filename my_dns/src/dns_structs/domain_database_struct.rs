@@ -35,7 +35,7 @@ impl DomainDatabase {
             },
             None => {
                 let mut ns_records = HashMap::new();
-                ns_records.insert(domain_name,vec![entry]).unwrap();
+                ns_records.insert(domain_name,vec![entry]);
                 self.ns_records = Some(ns_records);     
             }
         }

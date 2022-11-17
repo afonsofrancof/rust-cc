@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     net::{SocketAddr, UdpSocket},
+    ops::Add,
     thread,
 };
 
@@ -22,14 +23,17 @@ pub fn start_sp(config_path: String, port: u16) {
 
     let mut database: HashMap<String, DomainDatabase> = HashMap::new();
 
-    for (domain_name,domain_config) in config.get_domain_configs().iter(){
+    for (domain_name, domain_config) in config.get_domain_configs().iter() {
         let db_path = match domain_config.get_domain_db() {
             Some(db) => db,
-            None => {println!("No DB entry found for domain {domain_name} in the config file");continue;}
+            None => {
+                println!("No DB entry found for domain {domain_name} in the config file");
+                continue;
+            }
         };
-        let db = match domain_database_parse::get(db_path){
-            Ok(db_parsed) => database.insert(domain_name.to_string(),db_parsed),
-            Err(err) => panic!("{err}") 
+        let db = match domain_database_parse::get(db_path) {
+            Ok(db_parsed) => database.insert(domain_name.to_string(), db_parsed),
+            Err(err) => panic!("{err}"),
         };
     }
 
@@ -62,11 +66,25 @@ fn client_handler(
         Err(_) => panic!("Could not deserialize message"),
     };
     let queried_domain = dns_message.data.query_info.name;
-    let queried_domain_db = match database.get("queried_domain") {
-        Some(domain_database) => domain_database,
-        None => panic!("Domain database not found"),
+
+    let (domain,db) = match database
+        .iter()
+        .clone()
+        .filter(|(domain_name, _domain_db)| {
+            ".".to_string()
+                .add(&queried_domain)
+                .ends_with(&".".to_string().add(domain_name))
+        })
+        .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
+            domain_name1.cmp(domain_name2)
+        }) {
+        Some((domain_name, domain_database)) => (domain_name,domain_database),
+        None => panic!(
+            "My domains can't answer this (need to add feature of resolver if no DD field exists )"
+        ),
     };
-    let subdomain_ns_list = match queried_domain_db.get_ns_records() {
+
+    let subdomain_ns_list = match db.get_ns_records() {
         Some(ns_records) => match ns_records.get(&queried_domain) {
             Some(ns_list) => Some(ns_list.to_owned()),
             None => {
@@ -76,7 +94,6 @@ fn client_handler(
         },
         None => None,
     };
-
 }
 
 //CONTINUE
