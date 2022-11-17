@@ -27,15 +27,11 @@ impl ServerConfig {
     pub fn add_domain_db(&mut self, domain: String, db_path: String) {
         match  self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
-                domain_config.domain_db = Some(db_path);
+                domain_config.set_domain_db(db_path);
             }
             None => {
-                let dc = DomainConfig {
-                    domain_db: Some(db_path),
-                    domain_sp: None,
-                    domain_ss: None,
-                    domain_log: "".to_string(),
-                };
+                let dc = DomainConfig::new();                
+                dc.set_domain_db(db_path);
                 self.domain_configs.insert(domain, dc);
             }
         }
@@ -45,20 +41,16 @@ impl ServerConfig {
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse {domain} SP's IP") 
         };
-        match self.domain_configs.get_mut(&domain) {
+        let domain_config = match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
-                domain_config.domain_sp = Some(addr);
-            }
+                domain_config.set_domain_sp(addr);
+            },
             None => {
-                let dc = DomainConfig {
-                    domain_db: None,
-                    domain_sp: Some(addr),
-                    domain_ss: None,
-                    domain_log: "".to_string(),
-                };
+                let dc = DomainConfig::new();
+                dc.set_domain_sp(addr);
                 self.domain_configs.insert(domain, dc);
             }
-        }
+        };
     }
     pub fn add_domain_ss(&mut self, domain: String, addr_string: String) {
         let addr = match SocketAddr::parse_ascii(addr_string.as_bytes()){
@@ -66,22 +58,28 @@ impl ServerConfig {
             Err(_) => panic!("Could not parse an SP IP from {domain}") 
         };
         match self.domain_configs.get_mut(&domain) {
-            Some(domain_config) => match &mut domain_config.domain_ss {
-                Some(vector) => vector.push(addr),
-                None => domain_config.domain_ss = Some(vec![addr]),
+            Some(domain_config) => {
+                domain_config.add_domain_ss(addr)
             },
             None => {
-                let dc = DomainConfig {
-                    domain_db: None,
-                    domain_sp: None,
-                    domain_ss: Some(vec![addr]),
-                    domain_log: "".to_string(),
-                };
+                let dc = DomainConfig::new();  
+                dc.add_domain_ss(addr);
                 self.domain_configs.insert(domain, dc);
             }
         };
     }
-
+    pub fn set_domain_log(&mut self, domain: String, domain_log: String) {
+        match self.domain_configs.get_mut(&domain) {
+            Some(domain_config) => {
+                domain_config.set_domain_log(domain_log);
+            }
+            None => {
+                let dc = DomainConfig::new();
+                dc.set_domain_log(domain_log);
+                self.domain_configs.insert(domain, dc);
+            }
+        }
+    }
     pub fn add_server_dd(&mut self, domain: String, addr_string: String) {
         let addr = match SocketAddr::parse_ascii(addr_string.as_bytes()){
             Ok(addr) => addr,
@@ -98,22 +96,7 @@ impl ServerConfig {
             }
         };
     }
-    pub fn set_domain_log(&mut self, domain: String, domain_log: String) {
-        match self.domain_configs.get_mut(&domain) {
-            Some(domain_config) => {
-                domain_config.domain_log = domain_log;
-            }
-            None => {
-                let dc = DomainConfig {
-                    domain_db: None,
-                    domain_sp: None,
-                    domain_ss: None,
-                    domain_log,
-                };
-                self.domain_configs.insert(domain, dc);
-            }
-        }
-    }
+    
     pub fn set_all_log(&mut self, all_log: String) {
         self.all_log = all_log;
     }
@@ -127,7 +110,40 @@ impl ServerConfig {
 }
 
 impl DomainConfig{
+    pub fn new() -> Self{
+        DomainConfig { 
+            domain_db: None,
+            domain_sp: None,
+            domain_ss: None,
+            domain_log: "".to_string(),
+        }
+    }
     pub fn get_domain_db(&self) -> Option<String> {
         self.domain_db
+    }
+    pub fn get_domain_sp(&self) -> Option<SocketAddr> {
+        self.domain_sp
+    }
+    pub fn get_domain_ss(&self) -> Option<Vec<SocketAddr>> {
+        self.domain_ss
+    }
+    pub fn get_domain_log(&self) -> String {
+        self.domain_log.to_owned()
+    }
+
+    pub fn set_domain_db(&mut self, db_path: String){
+        self.domain_db = Some(db_path);
+    }
+    pub fn set_domain_sp(&mut self, sp_addr: SocketAddr){
+        self.domain_sp = Some(sp_addr);
+    }
+    pub fn add_domain_ss(&mut self, ss_addr: SocketAddr){
+        match self.domain_ss {
+           Some(servers) => servers.push(ss_addr),
+           None => {self.domain_ss = Some(vec![ss_addr])}
+        }
+    }
+    pub fn set_domain_log(&mut self, log_path: String){
+        self.domain_log = log_path;
     }
 }
