@@ -83,9 +83,9 @@ fn main() {
     // Construir a mensagem de DNS a ser enviada e serialize
     let dns_message = query_builder(domain_name.to_string(), vec![QueryType::A], flag);
 
-    let recv_socket = UdpSocket::bind(server_ip.to_string()).unwrap();
+    let recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
-    let size_sent = match dns_send::send(dns_message, &recv_socket, "10.0.0.14".to_string(), 5353) {
+    let size_sent = match dns_send::send(dns_message, &recv_socket, server_ip) {
         Err(err) => panic!("{err}"),
         Ok(size_sent) => size_sent,
     };

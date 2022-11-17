@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, ops::Add};
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -37,7 +37,13 @@ impl ServerConfig {
         }
     }
     pub fn set_domain_sp(&mut self, domain: String, addr_string: String) {
-        let addr = match SocketAddr::parse_ascii(addr_string.as_bytes()){
+        let addr_vec = addr_string.split(':').collect::<Vec<_>>();
+        let addr_string_parsed = match addr_vec.len(){
+            1 => addr_vec[0].to_string().add(":").add("5353"),
+            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
+            _ => panic!("Malformed IP on {domain}'s SP entry")
+        };
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse {domain} SP's IP") 
         };
@@ -53,7 +59,13 @@ impl ServerConfig {
         };
     }
     pub fn add_domain_ss(&mut self, domain: String, addr_string: String) {
-        let addr = match SocketAddr::parse_ascii(addr_string.as_bytes()){
+        let addr_vec = addr_string.split(':').collect::<Vec<_>>();
+        let addr_string_parsed = match addr_vec.len(){
+            1 => addr_vec[0].to_string().add(":").add("5353"),
+            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
+            _ => panic!("Malformed IP on {domain}'s SS entry")
+        };
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse an SP IP from {domain}") 
         };
@@ -81,7 +93,13 @@ impl ServerConfig {
         }
     }
     pub fn add_server_dd(&mut self, domain: String, addr_string: String) {
-        let addr = match SocketAddr::parse_ascii(addr_string.as_bytes()){
+        let addr_vec = addr_string.split(':').collect::<Vec<_>>();
+        let addr_string_parsed = match addr_vec.len(){
+            1 => addr_vec[0].to_string().add(":").add("5353"),
+            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
+            _ => panic!("Malformed IP on DD entry for {domain}")
+        };
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse one of the Server's DD fields") 
         };
@@ -119,7 +137,7 @@ impl DomainConfig{
         }
     }
     pub fn get_domain_db(&self) -> Option<String> {
-        self.domain_db
+        self.domain_db.to_owned()
     }
     pub fn get_domain_sp(&self) -> Option<SocketAddr> {
         self.domain_sp
