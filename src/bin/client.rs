@@ -25,7 +25,7 @@ fn main() {
     let mut query_types: Vec<QueryType> = Vec::new();
     for qtype in input_types {
         println!("{}", qtype);
-        match QueryType::from_string(qtype) {
+        match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(e) => {
                 panic!("Input invalido: {}", qtype);
@@ -38,25 +38,25 @@ fn main() {
     // R  => 0 1 0 = 2
     // A  => 0 0 1 = 1
     // QR => 1 1 0 = 6
-    let mut flag: u8 = 4;
-    match args[3] {
-        'R' => flag = 6,
-        _ => flag = 4,
-    }
+    //let mut flag: u8 = 4;
+    //match args[3] {
+    //    'R' => flag = 6,
+    //    _ => flag = 4,
+    //}
 
-    let mut server_ip: String = match args[4] {
-        Some(ip) => server_ip,
-        None => (),
-    };
+    //let mut server_ip: String = match args[4] {
+    //    Some(ip) => server_ip,
+    //    None => (),
+    //};
 
     // Construir a mensagem de DNS a ser enviada e serialize
-    let dns_message = query_builder(domain_name, vec![QueryType::A], flag);
+    let dns_message = query_builder(domain_name, vec![QueryType::A], 6);
 
     let mut recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
-    let my_port = match dns_send::send(dns_message, &recv_socket, server_ip.to_string()) {
+    let size_sent = match dns_send::send(dns_message, &recv_socket, "10.0.0.14".to_string(),5353) {
         Err(err) => panic!("{err}"),
-        Ok(port) => port,
+        Ok(size_sent) => size_sent,
     };
 
     let mut buf = [0; 1000];
