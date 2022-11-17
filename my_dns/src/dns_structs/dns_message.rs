@@ -51,6 +51,15 @@ impl QueryType {
             QueryType::PTR => "PTR",
         }
     }
+    pub fn from_string(query_type:String) -> Self {
+        match query_type.as_str() {
+            "NS" => QueryType::NS,
+            "A" => QueryType::A,
+            "CNAME" => QueryType::CNAME,
+            "MX" => QueryType::MX,
+            "PTR" =>QueryType::PTR,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]

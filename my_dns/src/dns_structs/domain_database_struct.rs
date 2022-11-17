@@ -41,9 +41,9 @@ impl DomainDatabase{
         };
         
     }
-    pub fn add_a_record(&self) {}
-    pub fn add_cname_record(&self) {self.cname}
-    pub fn add_mx_record(&self) {self.mx_records}
-    pub fn add_ptr_record(&self) {self.ptr_records}
+    pub fn add_a_record(&self,entry:Entry) {todo!()}
+    pub fn add_cname_record(&self,entry:Entry) {todo!()}
+    pub fn add_mx_record(&self,entry:Entry) {todo!()}
+    pub fn add_ptr_record(&self,entry:Entry) {todo!()}
 
 }
