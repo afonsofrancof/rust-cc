@@ -25,7 +25,7 @@ fn main() {
     let mut query_types: Vec<QueryType> = Vec::new();
     for qtype in input_types {
         println!("{}", qtype);
-        match QueryType::from_str(qtype) {
+        match QueryType::from_string(qtype) {
             Ok(q) => query_types.push(q),
             Err(e) => {
                 panic!("Input invalido: {}", qtype);
@@ -39,15 +39,15 @@ fn main() {
     // A  => 0 0 1 = 1
     // QR => 1 1 0 = 6
     let mut flag: u8 = 4;
-    let mut server_ip: String = "void".to_string();
     match args[3] {
         'R' => flag = 6,
-        _ => server_ip = args[3],
+        _ => flag = 4,
     }
 
-    match server_ip {
-        "void" => server_ip = "127.0.0.1:5454",
-    }
+    let mut server_ip: String = match args[4] {
+        Some(ip) => server_ip,
+        None => (),
+    };
 
     // Construir a mensagem de DNS a ser enviada e serialize
     let dns_message = query_builder(domain_name, vec![QueryType::A], flag);
