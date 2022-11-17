@@ -1,24 +1,56 @@
-use core::{num, panic};
+use clap::*;
+use core::panic;
 use my_dns::dns_make::dns_send;
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
 use rand::random;
-use std::env;
 use std::net::UdpSocket;
-use std::str::FromStr;
 
 fn main() {
+    // Argumentos de Input para fazer queries
     // Ordem de input de argumentos:
     // 1. Domain_name                               Obrigatorio
     // 2. Types of values (separados por virgula)   Obrigatorio
-    // 3. Flag Recursiva Ou Nao                     Obrigatorio
-    // 4. Ip do servidor a quem enviar pedido      Opcional
-    let args: Vec<String> = env::args().collect();
-    let n_args = args.len();
+    // 3. Flag Recursiva                            Opcional
+    // 4. Ip do servidor a quem enviar pedido       Opcional
+    let arguments = Command::new("client")
+        .author("Grupo 11")
+        .version("1.0.0")
+        .about("A CLI tool to make DNS requests")
+        .args([
+            Arg::new("domain")
+                .short('d')
+                .long("domain")
+                .required(true)
+                .help("Name of the domain to query"),
+            Arg::new("query_types")
+                .short('t')
+                .long("types")
+                .required(true)
+                .help("Types of Entries needed"),
+            Arg::new("recursive")
+                .action(ArgAction::SetTrue)
+                .short('r')
+                .long("recursive")
+                .help("Creates a DNS resolver"),
+            Arg::new("server_ip")
+                .short('s')
+                .long("server")
+                .help("Server IP Address"),
+        ])
+        .get_matches();
 
-    let domain_name = args[1].to_owned();
-    let input_types = args[2].split(',');
+    let domain_name = match arguments.get_one::<String>("domain") {
+        Some(name) => name,
+        None => panic!("No domain provided."),
+    };
+
+    let input_types = match arguments.get_one::<String>("query_types") {
+        Some(name) => name,
+        None => panic!("No query types provided."),
+    }
+    .split(',');
 
     // Passar de string para a Enum QueryType
     // resultando em erro, e cancelada a execucao
@@ -28,7 +60,7 @@ fn main() {
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(e) => {
-                panic!("Input invalido: {}", qtype);
+                panic!("Invalid Query Type Input: {}", qtype);
             }
         };
     }
@@ -38,23 +70,22 @@ fn main() {
     // R  => 0 1 0 = 2
     // A  => 0 0 1 = 1
     // QR => 1 1 0 = 6
-    //let mut flag: u8 = 4;
-    //match args[3] {
-    //    'R' => flag = 6,
-    //    _ => flag = 4,
-    //}
+    let flag: u8 = match arguments.get_flag("recursive") {
+        true => 6,
+        false => 4,
+    };
 
-    //let mut server_ip: String = match args[4] {
-    //    Some(ip) => server_ip,
-    //    None => (),
-    //};
+    let server_ip: String = match arguments.get_one::<String>("server_ip") {
+        Some(ip) => ip.to_string(),
+        None => "127.0.0.1:0".to_string(),
+    };
 
     // Construir a mensagem de DNS a ser enviada e serialize
-    let dns_message = query_builder(domain_name, vec![QueryType::A], 6);
+    let dns_message = query_builder(domain_name.to_string(), vec![QueryType::A], flag);
 
-    let mut recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let recv_socket = UdpSocket::bind(server_ip.to_string()).unwrap();
 
-    let size_sent = match dns_send::send(dns_message, &recv_socket, "10.0.0.14".to_string(),5353) {
+    let size_sent = match dns_send::send(dns_message, &recv_socket, "10.0.0.14".to_string(), 5353) {
         Err(err) => panic!("{err}"),
         Ok(size_sent) => size_sent,
     };
