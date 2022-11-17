@@ -12,7 +12,8 @@ fn main() {
     // Ordem de input de argumentos:
     // 1. Domain_name                               Obrigatorio
     // 2. Types of values (separados por virgula)   Obrigatorio
-    // 3. Flag Recursiva   ||  Ip do servidor a quem enviar pedido
+    // 3. Flag Recursiva Ou Nao                     Obrigatorio
+    // 4. Ip do servidor a quem enviar pedido      Opcional
     let args: Vec<String> = env::args().collect();
     let n_args = args.len();
 
