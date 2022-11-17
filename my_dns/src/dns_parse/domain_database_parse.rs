@@ -82,7 +82,7 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     }
     
 
-    let domain_database = DomainDatabase{config_list: soa_entries, ns_records: None, a_records: None, cname_records: None, mx_records: None, ptr_records: None };
+    let mut domain_database = DomainDatabase{config_list: soa_entries, ns_records: None, a_records: None, cname_records: None, mx_records: None, ptr_records: None };
     
     // Capturar todas as entries
     for cap in regex_entry.captures_iter(&read) {

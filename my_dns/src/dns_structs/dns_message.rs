@@ -51,13 +51,14 @@ impl QueryType {
             QueryType::PTR => "PTR",
         }
     }
-    pub fn from_string(query_type:String) -> Self {
+    pub fn from_string(query_type:String) -> Result<QueryType,String> {
         match query_type.as_str() {
-            "NS" => QueryType::NS,
-            "A" => QueryType::A,
-            "CNAME" => QueryType::CNAME,
-            "MX" => QueryType::MX,
-            "PTR" =>QueryType::PTR,
+            "NS" => Ok(QueryType::NS),
+            "A" => Ok(QueryType::A),
+            "CNAME" => Ok(QueryType::CNAME),
+            "MX" => Ok(QueryType::MX),
+            "PTR" => Ok(QueryType::PTR),
+            _ => Err(format!("Cannot find QueryType of {}",query_type))
         }
     }
 }

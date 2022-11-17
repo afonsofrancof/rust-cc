@@ -1,8 +1,18 @@
-use std::{path::{Path, self}, sync::mpsc::Receiver, hash::Hash, collections::HashMap, ops::Add};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    ops::Add,
+    path::{self, Path},
+    sync::mpsc::Receiver,
+};
 
-use crate::{dns_structs::{domain_database_struct::DomainDatabase, server_config::ServerConfig, dns_message::{DNSMessage}}, dns_parse::server_config_parse};
+use crate::{
+    dns_parse::server_config_parse,
+    dns_structs::{
+        dns_message::DNSMessage, domain_database_struct::DomainDatabase,
+        server_config::ServerConfig,
+    },
+};
 use queues::*;
 
-pub fn start_sr(config_dir:String,receiver: Receiver<DNSMessage>){
-}
-
+pub fn start_sr(config_path: String, port: u16) {}

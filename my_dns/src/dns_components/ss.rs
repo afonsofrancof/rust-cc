@@ -15,5 +15,4 @@ use crate::{
 };
 use queues::*;
 
-pub fn start_ss(domain_name: String, config: ServerConfig, receiver: Receiver<DNSMessage>) {
-}
+pub fn start_ss(config_path: String, port: u16) {}
