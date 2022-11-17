@@ -3,7 +3,7 @@ use std::{collections::HashMap,hash::Hash,ops::Add,path::{self, Path},str::patte
 use crate::{
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
-        dns_message::DNSMessage, domain_database_struct::DomainDatabase,
+        dns_message::{DNSMessage, QueryType, DNSSingleResponse}, domain_database_struct::DomainDatabase,
         server_config::ServerConfig,
     },
 };
@@ -43,22 +43,55 @@ fn client_handler(buf: Vec<u8>,num_of_bytes:usize, src_addr:SocketAddr,database:
         Ok(message) => message,
         Err(_) => panic!("Could not deserialize message")
     };
-        let queried_domain = dns_message.data.query_info.name;
-        let queried_domain_db = match database.get("queried_domain"){
-           Some(domain_database) => domain_database,
-            None => panic!("Domain database not found")
-        };
-        match queried_domain_db.subdomain_name_servers {
-            Some(ns_list) => {
-                match ns_list
-                    .iter()
-                    .filter(|ns| {".".to_string().add(&ns.name).is_suffix_of(&".".to_string().add(&queried_domain))})
-                    .max_by(|ns1,ns2| ns1.name.len().cmp(&ns2.name.len())){
-                        Some(sp) => Some(sp),
-                        None => None
-                    }
-            },
-            None => {println!("No NS found for {}",queried_domain);None}
-        };
-
+    let queried_domain = dns_message.data.query_info.name;
+    let queried_domain_db = match database.get("queried_domain"){
+        Some(domain_database) => domain_database,
+        None => panic!("Domain database not found")
+    };
+    let subdomain_ns_list = match queried_domain_db.get_ns_records() {
+        Some(ns_records) => {
+            match ns_records.get(&queried_domain){
+                Some(ns_list) => Some(ns_list),
+                None => {println!("No NS found for {}",queried_domain);None}
+            }
+        }
+        None => None
+    };
 }
+
+
+
+
+
+    //CONTINUE 
+   // let query_types = dns_message.data.query_info.type_of_value.clone();
+
+   // let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
+
+   // for query_type in query_types.into_iter() {
+   //     let response = match query_type{
+   //         QueryType::A => queried_domain_db.a_records
+   //         QueryType::NS => queried_domain_db.domain_name_servers
+   //         QueryType::MX => queried_domain_db.mx_records
+   //         QueryType::CNAME => queried_domain_db.cname_records
+   //         QueryType::PTR => queried_domain_db.ptr_records
+   //     };
+   //     let mut response_vec = Vec::new();
+
+   //     for entry in response {
+   //         response_vec.push(DNSSingleResponse {
+   //             name: entry.name.to_owned(),
+   //             type_of_value: entry.entry_type.clone(),
+   //             value: entry.value.to_owned(),
+   //             ttl: entry.ttl,
+   //         });
+   //     }
+   //     response_map.insert(query_type, response_vec);
+   // }
+
+   // dns_message.data.response_values = Some(response_map);
+   // let addr = src_addr.ip();
+   // let port = src_addr.port();
+   // let send_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+   // let destination = format!("{}:{}",addr,port);
+   // let _port = dns_send::send(dns_message, &send_socket,destination);

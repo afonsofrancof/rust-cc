@@ -1,3 +1,4 @@
+use crate::dns_structs::dns_message::QueryType;
 use crate::dns_structs::domain_database_struct::{DomainDatabase, Entry};
 use regex::Regex;
 use std::collections::HashMap;
@@ -65,6 +66,8 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         }
 
         let ttl: u32 = temp_ttl.parse().unwrap();
+        
+
 
         soa_entries.insert(
             cap[2].to_string(),
@@ -77,7 +80,10 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
             },
         );
     }
+    
 
+    let domain_database = DomainDatabase{config_list: soa_entries, ns_records: None, a_records: None, cname_records: None, mx_records: None, ptr_records: None };
+    
     // Capturar todas as entries
     for cap in regex_entry.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
@@ -95,21 +101,21 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         let ttl: u32 = temp_ttl.parse().unwrap();
 
         let temp_entry: Entry = Entry {
-            name,
+            name:name.to_string(),
             entry_type: entry_type.to_owned(),
             value,
             ttl,
             priority,
         };
 
-        match entries.get_mut(&entry_type) {
-            Some(list) => {
-                list.push(temp_entry);
-            }
-            None => {
-                entries.insert(temp_entry.entry_type.to_owned(), vec![temp_entry]);
-            }
-        };
+        match entry_type.as_str(){
+            "NS" => domain_database.add_ns_record(name.to_owned(),temp_entry),
+            "A"  => domain_database.add_a_record(temp_entry),
+            "CNAME" => domain_database.add_cname_record(temp_entry),
+            "MX" => domain_database.add_mx_record(temp_entry),
+            "PTR" => domain_database.add_ptr_record(temp_entry),
+            _ => continue
+        } 
     }
 
     // // Prints de Debug temporario
@@ -130,11 +136,7 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     //     }
     //     println!("-------");
     // }
-
-    Ok(DomainDatabase {
-        config_list: soa_entries,
-        entry_list: entries,
-    })
+    Ok(domain_database)
 }
 
 // 1. LER O FILE COM UM BUFFER E DETERMINAR SE A INFO E USEFUL A CADA ITERACAO DO LOOP

@@ -44,5 +44,6 @@ fn main() {
     match arguments.get_one::<String>("server_type"){
         Some(server_type) => println!("{}",server_type),
             None => ()
-    }
+    }    
+    
 }
