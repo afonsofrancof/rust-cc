@@ -1,7 +1,8 @@
-use std::{collections::HashMap, fs::File, path::Path, io::Read};
+use std::{collections::HashMap, fs::File, path::Path, io::Read, net::SocketAddr};
 use regex::Regex;
-use crate::dns_structs::server_config::ServerConfig;
 use log::{info,error};
+
+use crate::dns_structs::server_config::ServerConfig;
 
 pub fn get(file_path: String) -> Result<ServerConfig,&'static str>{
     
@@ -30,31 +31,24 @@ pub fn get(file_path: String) -> Result<ServerConfig,&'static str>{
     
     info!("Capturing variables");
     let regex_variables =
-        Regex::new(r"(?m)^([a-z.0-9-]+) (DB|SS|DD|LG|ST) (.*)").unwrap();
-    
-    let mut domain_name: String = String::new();
-    let mut domain_db: String = String::new();
-    let mut domain_ss: Vec<String> = Vec::new();
-    let mut server_dd: HashMap<String,String> = HashMap::new();
-    let mut domain_log: String = String::new();
-    let mut all_log: String = String::new();
-    let mut st_db: String = String::new();
+        Regex::new(r"(?m)^([a-z.0-9-]+) (DB|SS|DD|LG|ST|SP) (.*)").unwrap();
     
     info!("Starting variable parse");
+    let mut server_config = ServerConfig::new();
 
     for cap in regex_variables.captures_iter(&read){
         match &cap[2]{
-            "DB" => {domain_name = cap[1].to_string();domain_db = cap[3].to_string()},
-            "SS" => domain_ss.push(cap[3].to_string()),
-            "DD" => {server_dd.insert(cap[1].to_string(),cap[3].to_string());},
+            "DB" => {server_config.add_domain_db(cap[1].to_string(), cap[3].to_string())},
+            "SS" => {server_config.add_domain_ss(cap[1].to_string(),cap[3].to_string())},
+            "DD" => {server_config.add_server_dd(cap[1].to_string(),cap[3].to_string())},
             "LG" => match &cap[1]{
-                "all" => all_log = cap[3].to_string(),
-                _ => domain_log = cap[3].to_string(), 
+                "all" => {server_config.set_all_log(cap[3].to_string())},
+                _ => {server_config.set_domain_log(cap[1].to_string(),cap[3].to_string())}, 
             },
-            "ST" => st_db = cap[3].to_string(),
+            "ST" => {server_config.set_st_db(cap[3].to_string())},
             _ => ()
         } 
     }
 
-    Ok(ServerConfig{domain_name,domain_db,domain_ss,server_dd,domain_log,all_log,st_db})
+    Ok(server_config)
 } 

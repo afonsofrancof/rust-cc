@@ -1,11 +1,6 @@
 use std::{
     collections::HashMap,
-    hash::Hash,
     net::{SocketAddr, UdpSocket},
-    ops::Add,
-    path::{self, Path},
-    str::pattern::Pattern,
-    sync::mpsc::Receiver,
     thread,
 };
 
@@ -17,18 +12,26 @@ use crate::{
         server_config::ServerConfig,
     },
 };
-use queues::*;
 
 pub fn start_sp(config_path: String, port: u16) {
-    let database: HashMap<String, DomainDatabase>;
-
     // parsing da config
     let config: ServerConfig = match server_config_parse::get(config_path) {
         Ok(config) => config,
         Err(_err) => panic!("Server config path not found!"),
     };
 
-    let database: HashMap<String, DomainDatabase> = HashMap::new();
+    let mut database: HashMap<String, DomainDatabase> = HashMap::new();
+
+    for (domain_name,domain_config) in config.get_domain_configs().iter(){
+        let db_path = match domain_config.get_domain_db() {
+            Some(db) => db,
+            None => {println!("No DB entry found for domain {domain_name} in the config file");continue;}
+        };
+        let db = match domain_database_parse::get(db_path){
+            Ok(db_parsed) => database.insert(domain_name.to_string(),db_parsed),
+            Err(err) => panic!("{err}") 
+        };
+    }
 
     let socket = match UdpSocket::bind(format!("127.0.0.1:{port}",)) {
         Ok(socket) => socket,
@@ -73,6 +76,7 @@ fn client_handler(
         },
         None => None,
     };
+
 }
 
 //CONTINUE
