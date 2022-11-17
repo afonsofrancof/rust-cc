@@ -1,13 +1,15 @@
 use std::collections::HashMap;
+use crate::dns_parse::domain_database_parse;
+use super::dns_message::QueryType;
+
 #[derive(Clone)]
 pub struct DomainDatabase {
     pub config_list: HashMap<String, Entry>,
-    pub  domain_name_servers: Option<Vec<Entry>>,
-    pub  subdomain_name_servers: Option<Vec<Entry>>,
-    pub  a_records: Option<Vec<Entry>>,
-    pub  cname_records: Option<Vec<Entry>>,
-    pub  mx_records: Option<Vec<Entry>>,
-    pub  ptr_records: Option<Vec<Entry>>,
+    pub ns_records: Option<HashMap<String,Vec<Entry>>>,
+    pub a_records: Option<Vec<Entry>>,
+    pub cname_records: Option<Vec<Entry>>,
+    pub mx_records: Option<Vec<Entry>>,
+    pub ptr_records: Option<Vec<Entry>>,
 }
 #[derive(Clone)]
 pub struct Entry {
@@ -16,4 +18,32 @@ pub struct Entry {
     pub value: String,
     pub ttl: u32,
     pub priority: Option<u16>,
+}
+
+impl DomainDatabase{
+    pub fn get_ns_records(&self) -> Option<HashMap<String,Vec<Entry>>> {self.ns_records}
+    pub fn get_a_records(&self) -> Option<Vec<Entry>> {self.a_records}
+    pub fn get_cname_records(&self) -> Option<Vec<Entry>> {self.cname_records}
+    pub fn get_mx_records(&self) -> Option<Vec<Entry>> {self.mx_records}
+    pub fn get_ptr_records(&self) -> Option<Vec<Entry>> {self.ptr_records}
+
+    pub fn add_ns_record(&self, domain_name: String, entry: Entry){
+        match self.ns_records {
+            Some(domain) => match domain.get(&domain_name) {
+                Some(records) => {records.push(entry);}
+                None => {domain.insert(domain_name,vec![entry]);}
+            },
+            None => {
+                let ns_records = HashMap::new();
+                ns_records.insert(domain_name,vec![entry]).unwrap();
+                self.ns_records = Some(ns_records);     
+            }
+        };
+        
+    }
+    pub fn add_a_record(&self) {}
+    pub fn add_cname_record(&self) {self.cname}
+    pub fn add_mx_record(&self) {self.mx_records}
+    pub fn add_ptr_record(&self) {self.ptr_records}
+
 }
