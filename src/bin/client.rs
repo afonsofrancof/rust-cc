@@ -10,15 +10,17 @@ use std::str::FromStr;
 
 fn main() {
     // Ordem de input de argumentos:
-    // 1. domain_name
-    // 2.type of value (separados virgula)
-    // 3. flags (recursivo ou nao)
-    // 4. Opcionalmente o ip de um servidor dns
+    // 1. Domain_name                               Obrigatorio
+    // 2. Types of values (separados por virgula)   Obrigatorio
+    // 3. Flag Recursiva   ||  Ip do servidor a quem enviar pedido
     let args: Vec<String> = env::args().collect();
+    let n_args = args.len();
 
     let domain_name = args[1].to_owned();
     let input_types = args[2].split(',');
 
+    // Passar de string para a Enum QueryType
+    // resultando em erro, e cancelada a execucao
     let mut query_types: Vec<QueryType> = Vec::new();
     for qtype in input_types {
         println!("{}", qtype);
@@ -30,11 +32,28 @@ fn main() {
         };
     }
 
-    let dns_message = query_builder(domain_name, vec![QueryType::A]);
+    // O sistema de flags funciona em binario em que se soma o valor de todas as flags
+    // Q  => 1 0 0 = 4
+    // R  => 0 1 0 = 2
+    // A  => 0 0 1 = 1
+    // QR => 1 1 0 = 6
+    let mut flag: u8 = 4;
+    let mut server_ip: String = "void".to_string();
+    match args[3] {
+        'R' => flag = 6,
+        _ => server_ip = args[3],
+    }
+
+    match server_ip {
+        "void" => server_ip = "127.0.0.1:5454",
+    }
+
+    // Construir a mensagem de DNS a ser enviada e serialize
+    let dns_message = query_builder(domain_name, vec![QueryType::A], flag);
 
     let mut recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
-    let my_port = match dns_send::send(dns_message, &recv_socket, "127.0.0.1:5454".to_string()) {
+    let my_port = match dns_send::send(dns_message, &recv_socket, server_ip.to_string()) {
         Err(err) => panic!("{err}"),
         Ok(port) => port,
     };
@@ -55,7 +74,7 @@ fn main() {
     }
 }
 
-fn query_builder(domain_name: String, query_types: Vec<QueryType>) -> DNSMessage {
+fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
     let dns_query_info = DNSQueryInfo {
         name: domain_name,
         type_of_value: query_types,
@@ -68,7 +87,7 @@ fn query_builder(domain_name: String, query_types: Vec<QueryType>) -> DNSMessage
     };
     let dns_message_header = DNSMessageHeaders {
         message_id: random(),
-        flags: 6,
+        flags: flag,
         response_code: None,
         number_of_values: None,
         number_of_authorities: None,
