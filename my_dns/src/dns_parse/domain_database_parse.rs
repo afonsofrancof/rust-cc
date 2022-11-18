@@ -4,6 +4,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Add;
 use std::path::Path;
 
 pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
@@ -96,6 +97,14 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         for (variable, value) in variables.iter() {
             name = name.replace(variable, value);
             temp_ttl = temp_ttl.replace(variable, value).parse().unwrap();
+        }
+
+        if !name.ends_with("."){
+            let main_domain = match variables.get("@"){
+                Some(value) => value,
+                None => panic!("Non complete domain name found in entry and no @ variable defined")
+            };
+           name = name.add(".").add(main_domain);
         }
 
         let ttl: u32 = temp_ttl.parse().unwrap();

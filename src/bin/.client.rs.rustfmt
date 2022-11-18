@@ -1,6 +1,6 @@
 use clap::*;
 use core::panic;
-use my_dns::dns_make::{dns_send,dns_recv};
+use my_dns::dns_make::dns_send;
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
@@ -25,7 +25,6 @@ fn main() {
                 .required(true)
                 .help("Name of the domain to query"),
             Arg::new("query_types")
-                .num_args(1..=5)
                 .short('t')
                 .long("types")
                 .required(true)
@@ -47,10 +46,11 @@ fn main() {
         None => panic!("No domain provided."),
     };
 
-    let input_types = match arguments.get_many::<String>("query_types") {
+    let input_types = match arguments.get_one::<String>("query_types") {
         Some(name) => name,
         None => panic!("No query types provided."),
-    };
+    }
+    .split(',');
 
     // Passar de string para a Enum QueryType
     // resultando em erro, e cancelada a execucao
@@ -59,7 +59,7 @@ fn main() {
         println!("{}", qtype);
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
-            Err(_e) => {
+            Err(e) => {
                 panic!("Invalid Query Type Input: {}", qtype);
             }
         };
@@ -81,7 +81,7 @@ fn main() {
     };
 
     // Construir a mensagem de DNS a ser enviada e serialize
-    let dns_message = query_builder(domain_name.to_string(), query_types, flag);
+    let dns_message = query_builder(domain_name.to_string(), vec![QueryType::A], flag);
 
     let recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
 
@@ -90,10 +90,9 @@ fn main() {
         Ok(size_sent) => size_sent,
     };
 
-    let (dns_recv_message,src_addr) = match dns_recv::recv(&recv_socket){
-        Ok(response) => response,
-        Err(err) => panic!("{err}")
-    };
+    let mut buf = [0; 1000];
+    let _ = recv_socket.recv_from(&mut buf).unwrap();
+    let dns_recv_message: DNSMessage = bincode::deserialize(&mut buf).unwrap();
 
     match dns_recv_message.data.response_values {
         Some(response_vec) => {
@@ -108,7 +107,7 @@ fn main() {
                 println!("\n---------");
             }
         }
-        None => { println!("No response values received");//NEED TO CHECK NS
+        None => { //CHECK FOR NS
         }
     }
 }

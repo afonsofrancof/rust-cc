@@ -30,7 +30,7 @@ impl ServerConfig {
                 domain_config.set_domain_db(db_path);
             }
             None => {
-                let dc = DomainConfig::new();                
+                let mut dc = DomainConfig::new();                
                 dc.set_domain_db(db_path);
                 self.domain_configs.insert(domain, dc);
             }
@@ -47,12 +47,12 @@ impl ServerConfig {
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse {domain} SP's IP") 
         };
-        let domain_config = match self.domain_configs.get_mut(&domain) {
+        match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
                 domain_config.set_domain_sp(addr);
             },
             None => {
-                let dc = DomainConfig::new();
+                let mut dc = DomainConfig::new();
                 dc.set_domain_sp(addr);
                 self.domain_configs.insert(domain, dc);
             }
@@ -74,7 +74,7 @@ impl ServerConfig {
                 domain_config.add_domain_ss(addr)
             },
             None => {
-                let dc = DomainConfig::new();  
+                let mut dc = DomainConfig::new();  
                 dc.add_domain_ss(addr);
                 self.domain_configs.insert(domain, dc);
             }
@@ -86,7 +86,7 @@ impl ServerConfig {
                 domain_config.set_domain_log(domain_log);
             }
             None => {
-                let dc = DomainConfig::new();
+                let mut dc = DomainConfig::new();
                 dc.set_domain_log(domain_log);
                 self.domain_configs.insert(domain, dc);
             }
@@ -140,10 +140,10 @@ impl DomainConfig{
         self.domain_db.to_owned()
     }
     pub fn get_domain_sp(&self) -> Option<SocketAddr> {
-        self.domain_sp
+        self.domain_sp.to_owned()
     }
     pub fn get_domain_ss(&self) -> Option<Vec<SocketAddr>> {
-        self.domain_ss
+        self.domain_ss.to_owned()
     }
     pub fn get_domain_log(&self) -> String {
         self.domain_log.to_owned()
@@ -156,7 +156,7 @@ impl DomainConfig{
         self.domain_sp = Some(sp_addr);
     }
     pub fn add_domain_ss(&mut self, ss_addr: SocketAddr){
-        match self.domain_ss {
+        match &mut self.domain_ss {
            Some(servers) => servers.push(ss_addr),
            None => {self.domain_ss = Some(vec![ss_addr])}
         }

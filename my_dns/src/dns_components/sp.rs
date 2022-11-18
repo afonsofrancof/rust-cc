@@ -9,9 +9,9 @@ use crate::{
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
         dns_message::{DNSMessage, DNSSingleResponse, QueryType},
-        domain_database_struct::DomainDatabase,
+        domain_database_struct::{DomainDatabase, Entry},
         server_config::ServerConfig,
-    },
+    }, dns_make::dns_send,
 };
 
 pub fn start_sp(config_path: String, port: u16) {
@@ -61,13 +61,16 @@ fn client_handler(
     src_addr: SocketAddr,
     database: HashMap<String, DomainDatabase>,
 ) {
-    let dns_message: DNSMessage = match bincode::deserialize(&buf) {
+    let mut dns_message: DNSMessage = match bincode::deserialize(&buf) {
         Ok(message) => message,
         Err(_) => panic!("Could not deserialize message"),
     };
-    let queried_domain = dns_message.data.query_info.name;
+    let mut queried_domain:String = dns_message.data.query_info.name.to_owned();
+    if !queried_domain.ends_with("."){
+        queried_domain = queried_domain.add(".");
+    };
 
-    let (domain,db) = match database
+    let (domain_name, db) = match database
         .iter()
         .clone()
         .filter(|(domain_name, _domain_db)| {
@@ -78,53 +81,127 @@ fn client_handler(
         .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
             domain_name1.cmp(domain_name2)
         }) {
-        Some((domain_name, domain_database)) => (domain_name,domain_database),
+        Some((domain_name, domain_database)) => (domain_name, domain_database),
         None => panic!(
             "My domains can't answer this (need to add feature of resolver if no DD field exists )"
         ),
     };
 
-    let subdomain_ns_list = match db.get_ns_records() {
-        Some(ns_records) => match ns_records.get(&queried_domain) {
-            Some(ns_list) => Some(ns_list.to_owned()),
-            None => {
-                println!("No NS found for {}", queried_domain);
-                None
+
+    if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain) {
+        let mut authorities_values = Vec::new();
+        for entry in subdomain_ns_list.iter().map(|entry| entry.to_owned()) {
+            authorities_values.push(DNSSingleResponse {
+                name: entry.name,
+                type_of_value: entry.entry_type,
+                value: entry.value,
+                ttl: entry.ttl,
+            })
+        }
+        dns_message.data.authorities_values = Some(authorities_values.to_owned());
+        dns_message.header.number_of_authorities = match authorities_values.len().try_into() {
+            Ok(num) => Some(num),
+            Err(err) => panic!("{err}"),
+        };
+
+        let mut extra_values = Vec::new();
+        let a_records = match db.get_a_records() {
+            Some(records) => records,
+            None => panic!("No A records found, cannot get IP of an NS entry"),
+        };
+        for ns_entry in subdomain_ns_list {
+            let a_record: Entry = match a_records.iter().find(|entry| entry.name == ns_entry.value)
+            {
+                Some(record) => record.to_owned(),
+                None => panic!("No A record found for NS entry value {}", ns_entry.value),
+            };
+            extra_values.push(DNSSingleResponse {
+                name: a_record.name,
+                type_of_value: a_record.entry_type,
+                value: a_record.value,
+                ttl: a_record.ttl,
+            })
+        }
+        dns_message.data.extra_values = Some(extra_values.to_owned());
+        dns_message.header.number_of_extra_values = match extra_values.len().try_into() {
+            Ok(num) => Some(num),
+            Err(err) => panic!("{err}"),
+        };
+        println!("Subdomain_name: {} | Domain_name: {}",sub_domain_name,domain_name.to_owned());
+        if sub_domain_name == domain_name.to_owned() {
+            println!("I am the authority for this query");
+            let query_types = dns_message.data.query_info.type_of_value.clone();
+
+            let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
+
+            for query_type in query_types.into_iter() {
+                let response = match query_type {
+                    QueryType::A => db.get_a_records(),
+                    QueryType::NS => match db.get_ns_records() {
+                        Some(records) => Some(
+                            records
+                                .values()
+                                .map(|entry| entry.to_owned())
+                                .flatten()
+                                .collect(),
+                        ),
+                        None => None,
+                    },
+                    QueryType::MX => db.get_mx_records(),
+                    QueryType::CNAME => db.get_cname_records(),
+                    QueryType::PTR => db.get_ptr_records(),
+                };
+                println!("Got values from DB");
+                let mut response_vec = Vec::new();
+
+                match response {
+                    Some(res) => {
+                        for entry in res {
+                            response_vec.push(DNSSingleResponse {
+                                name: entry.name.to_owned(),
+                                type_of_value: entry.entry_type.clone(),
+                                value: entry.value.to_owned(),
+                                ttl: entry.ttl,
+                            });
+                        }
+                        response_map.insert(query_type, response_vec);
+                    }
+                    None => {
+                        println!(
+                            "No entries found for requested type {}",
+                            query_type.to_string()
+                        )
+                    }
+                }
             }
-        },
-        None => None,
+
+            dns_message.header.response_code = match response_map.len() {
+                0 => Some(2),
+                _ => {
+                    dns_message.data.response_values = Some(response_map.to_owned());
+                    dns_message.header.number_of_values = match response_map.values().flatten().collect::<Vec<_>>().len().try_into() {
+                        Ok(num) => Some(num),
+                        Err(err) => panic!("{err}"),
+                    };
+                    Some(0)
+                },
+            };
+        } else {
+            dns_message.header.response_code = Some(1);
+        }
+    } else {
+        //FAZER RESOLVE DEPENDENDO DOS CAMPOS DD
+    }
+    
+     let addr = src_addr.ip();
+     let port = src_addr.port();
+     let send_socket = match UdpSocket::bind("127.0.0.1:0"){
+        Ok(socket) => socket,
+        Err(_) => panic!("Could not bind response socket")
+     };
+     let destination = format!("{}:{}",addr,port);
+     let _num_sent_bytes = match dns_send::send(dns_message, &send_socket,destination){
+        Ok(num_bytes) => num_bytes,
+        Err(err) => panic!("{err}")
     };
 }
-
-//CONTINUE
-// let query_types = dns_message.data.query_info.type_of_value.clone();
-
-// let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
-
-// for query_type in query_types.into_iter() {
-//     let response = match query_type{
-//         QueryType::A => queried_domain_db.a_records
-//         QueryType::NS => queried_domain_db.domain_name_servers
-//         QueryType::MX => queried_domain_db.mx_records
-//         QueryType::CNAME => queried_domain_db.cname_records
-//         QueryType::PTR => queried_domain_db.ptr_records
-//     };
-//     let mut response_vec = Vec::new();
-
-//     for entry in response {
-//         response_vec.push(DNSSingleResponse {
-//             name: entry.name.to_owned(),
-//             type_of_value: entry.entry_type.clone(),
-//             value: entry.value.to_owned(),
-//             ttl: entry.ttl,
-//         });
-//     }
-//     response_map.insert(query_type, response_vec);
-// }
-
-// dns_message.data.response_values = Some(response_map);
-// let addr = src_addr.ip();
-// let port = src_addr.port();
-// let send_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
-// let destination = format!("{}:{}",addr,port);
-// let _port = dns_send::send(dns_message, &send_socket,destination);
