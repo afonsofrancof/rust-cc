@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use alloc::collections;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -55,7 +56,16 @@ impl DNSMessage {
         let data = DNSMessageData::new();
         DNSMessage { header, data }
     }
+
+    pub fn to_string(&self) -> String {
+        let res = String::new();
+
+        res.push_str(self.header.to_string().as_str());
+        res.push(self.data.to_string().as_str());
+        res
+    }
 }
+
 impl DNSMessageHeaders {
     pub fn new() -> Self {
         DNSMessageHeaders {
@@ -67,7 +77,53 @@ impl DNSMessageHeaders {
             number_of_extra_values: None,
         }
     }
+   
+    // O sistema de flags funciona em binario em que se soma o valor de todas as flags
+    // A   => 0 0 1 = 1
+    // R   => 0 1 0 = 2
+    // Q   => 1 0 0 = 4
+    // R+A => 0 1 1 = 3
+    // Q+R => 1 1 0 = 6
+    pub fn decode_flags(&self) -> &str {
+        match self.flags {
+            1 => "A",
+            2 => "R",
+            4 => "Q",
+            3 => "R+A"
+            6 => "Q+R",
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut rc: u8 = 0;
+        let mut nov: u8 = 0;
+        let mut noa: u8 = 0;
+        let mut noev: u8 = 0;
+
+        if let Some(i) = self.response_code {
+            rc = i
+        };
+        if let Some(i) = self.number_of_values {
+            nov = i
+        };
+        if let Some(i) = self.number_of_authorities {
+            noa = i
+        };
+        if let Some(i) = self.number_of_extra_values {
+            noev = i
+        };
+
+        format!("{},{},{},{},{},{};",
+                self.message_id,
+                self.decode_flags(),
+                rc,
+                nov,
+                noa,
+                noev
+                )
+    }
 }
+
 impl DNSMessageData {
     pub fn new() -> Self {
         let dns_query_info = DNSQueryInfo::new();
@@ -78,13 +134,68 @@ impl DNSMessageData {
             extra_values: None,
         }
     }
+
+    pub fn to_string(&self) -> String {
+        let res = String::new();
+         
+        res.push_str(self.query_info.to_string().as_str());
+        res.push_str("\n");
+        let rv = match self.response_values {
+            Some(hm) => {
+                let vec_str: Vec<String> = hm.values().flatten().map(|x| x.to_string()).collect();
+                let mut sb: String = String::new();
+                for entry in vec_str {
+                    entry.push_str(",\n");
+                    sb.push_str(entry.as_str());
+                }
+                sb
+            },
+            None => String::new()
+        };
+        
+        let av = match self.authorities_values {
+            Some(values) => {
+                ""
+            },
+            None => ""
+        };
+
+        let ev = match self.extra_values {
+            Some(values) => {
+                ""
+            },
+            None => ""
+        };
+        String::new() 
+    }
 }
+
 impl DNSQueryInfo {
     pub fn new() -> Self {
         DNSQueryInfo {
             name: "".to_string(),
             type_of_value: vec![],
         }
+    }
+
+    pub fn to_string(&self) -> String {
+        let tov: String = self.type_of_value.iter().map(|x| x.to_string()).collect();
+        format!("{}, {}",self.name, tov)
+    }
+}
+
+impl DNSSingleResponse {
+    pub fn new() -> Self {
+        DNSSingleResponse {
+            name: String::new(), 
+            type_of_value: String::new(), 
+            value: String::new(), 
+            ttl: 0 
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
     }
 }
 
@@ -98,6 +209,7 @@ impl QueryType {
             QueryType::PTR => "PTR",
         }
     }
+
     pub fn from_string(query_type: String) -> Result<QueryType, String> {
         match query_type.as_str() {
             "NS" => Ok(QueryType::NS),
