@@ -61,7 +61,7 @@ impl DNSMessage {
         let res = String::new();
 
         res.push_str(self.header.to_string().as_str());
-        res.push(self.data.to_string().as_str());
+        res.push_str(self.data.to_string().as_str());
         res
     }
 }
@@ -89,8 +89,8 @@ impl DNSMessageHeaders {
             1 => "A",
             2 => "R",
             4 => "Q",
-            3 => "R+A"
-            6 => "Q+R",
+            3 => "R+A",
+            6 => "Q+R"
         }
     }
 
@@ -154,17 +154,29 @@ impl DNSMessageData {
         };
         
         let av = match self.authorities_values {
-            Some(values) => {
-                ""
+            Some(vec) => {
+                let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
+                let mut sb: String = String::new();
+                for entry in vec_str {
+                    entry.push_str(",\n");
+                    sb.push_str(entry.as_str());
+                }
+                sb
             },
-            None => ""
+            None => String::new()
         };
 
         let ev = match self.extra_values {
-            Some(values) => {
-                ""
+            Some(vec) => {
+                let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
+                let mut sb: String = String::new();
+                for entry in vec_str {
+                    entry.push_str(",\n");
+                    sb.push_str(entry.as_str());
+                }
+                sb
             },
-            None => ""
+            None => String::new()
         };
         String::new() 
     }
@@ -194,6 +206,7 @@ impl DNSSingleResponse {
         }
     }
 
+    // falta a priority
     pub fn to_string(&self) -> String {
         format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
     }
