@@ -137,9 +137,10 @@ impl DNSMessageData {
 
     pub fn to_string(&self) -> String {
         let res = String::new();
-         
+        
         res.push_str(self.query_info.to_string().as_str());
         res.push_str("\n");
+
         let rv = match self.response_values {
             Some(hm) => {
                 let vec_str: Vec<String> = hm.values().flatten().map(|x| x.to_string()).collect();
@@ -152,7 +153,8 @@ impl DNSMessageData {
             },
             None => String::new()
         };
-        
+        res.push_str(rv.as_str());
+
         let av = match self.authorities_values {
             Some(vec) => {
                 let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
@@ -165,6 +167,7 @@ impl DNSMessageData {
             },
             None => String::new()
         };
+        res.push_str(av.as_str());
 
         let ev = match self.extra_values {
             Some(vec) => {
@@ -178,7 +181,8 @@ impl DNSMessageData {
             },
             None => String::new()
         };
-        String::new() 
+
+        res 
     }
 }
 
