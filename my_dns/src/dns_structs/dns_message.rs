@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-
-use alloc::collections;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -57,8 +55,8 @@ impl DNSMessage {
         DNSMessage { header, data }
     }
 
-    pub fn to_string(&self) -> String {
-        let res = String::new();
+    pub fn get_string(&self) -> String {
+        let mut res = String::new();
 
         res.push_str(self.header.to_string().as_str());
         res.push_str(self.data.to_string().as_str());
@@ -84,13 +82,14 @@ impl DNSMessageHeaders {
     // Q   => 1 0 0 = 4
     // R+A => 0 1 1 = 3
     // Q+R => 1 1 0 = 6
-    pub fn decode_flags(&self) -> &str {
+    pub fn decode_flags(&self) -> Result<&str,&'static str> {
         match self.flags {
-            1 => "A",
-            2 => "R",
-            4 => "Q",
-            3 => "R+A",
-            6 => "Q+R"
+            1 => Ok("A"),
+            2 => Ok("R"),
+            4 => Ok("Q"),
+            3 => Ok("R+A"),
+            6 => Ok("Q+R"),
+            _ => Err("Flag value does not match any combination of flags")
         }
     }
 
@@ -113,9 +112,14 @@ impl DNSMessageHeaders {
             noev = i
         };
 
+        let flags = match self.decode_flags(){
+            Ok(flag) => flag,
+            Err(err) => panic!("{err}")
+        };
+
         format!("{},{},{},{},{},{};",
                 self.message_id,
-                self.decode_flags(),
+                flags,
                 rc,
                 nov,
                 noa,
@@ -136,16 +140,16 @@ impl DNSMessageData {
     }
 
     pub fn to_string(&self) -> String {
-        let res = String::new();
+        let mut res = String::new();
         
         res.push_str(self.query_info.to_string().as_str());
         res.push_str("\n");
 
-        let rv = match self.response_values {
+        let rv = match &self.response_values {
             Some(hm) => {
                 let vec_str: Vec<String> = hm.values().flatten().map(|x| x.to_string()).collect();
                 let mut sb: String = String::new();
-                for entry in vec_str {
+                for mut entry in vec_str {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
@@ -155,11 +159,11 @@ impl DNSMessageData {
         };
         res.push_str(rv.as_str());
 
-        let av = match self.authorities_values {
+        let av = match &self.authorities_values {
             Some(vec) => {
                 let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
                 let mut sb: String = String::new();
-                for entry in vec_str {
+                for mut entry in vec_str {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
@@ -169,11 +173,11 @@ impl DNSMessageData {
         };
         res.push_str(av.as_str());
 
-        let ev = match self.extra_values {
+        let ev = match &self.extra_values {
             Some(vec) => {
                 let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
                 let mut sb: String = String::new();
-                for entry in vec_str {
+                for mut entry in vec_str {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
@@ -181,7 +185,7 @@ impl DNSMessageData {
             },
             None => String::new()
         };
-
+        res.push_str(ev.as_str());
         res 
     }
 }

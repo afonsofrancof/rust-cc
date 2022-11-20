@@ -56,7 +56,6 @@ fn main() {
     // resultando em erro, e cancelada a execucao
     let mut query_types: Vec<QueryType> = Vec::new();
     for qtype in input_types {
-        println!("{}", qtype);
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(_e) => {
@@ -95,22 +94,23 @@ fn main() {
         Err(err) => panic!("{err}")
     };
 
-    match dns_recv_message.data.response_values {
-        Some(response_vec) => {
-            for (entry_type, entry_vector) in response_vec.iter() {
-                println!("{} Responses:", entry_type.to_string());
-                for entry in entry_vector {
-                    println!(
-                        "{} {} {} {}",
-                        entry.name, entry.type_of_value, entry.value, entry.ttl
-                    );
-                }
-                println!("\n---------");
-            }
-        }
-        None => { println!("No response values received");//NEED TO CHECK NS
-        }
-    }
+    println!("{}",dns_recv_message.get_string());
+   // match dns_recv_message.data.response_values {
+   //     Some(response_vec) => {
+   //         for (entry_type, entry_vector) in response_vec.iter() {
+   //             println!("{} Responses:", entry_type.to_string());
+   //             for entry in entry_vector {
+   //                 println!(
+   //                     "{} {} {} {}",
+   //                     entry.name, entry.type_of_value, entry.value, entry.ttl
+   //                 );
+   //             }
+   //             println!("\n---------");
+   //         }
+   //     }
+   //     None => { println!("No response values received");//NEED TO CHECK NS
+   //     }
+   // }
 }
 
 fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
