@@ -67,8 +67,6 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         }
 
         let ttl: u32 = temp_ttl.parse().unwrap();
-        
-
 
         soa_entries.insert(
             cap[2].to_string(),
@@ -81,10 +79,16 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
             },
         );
     }
-    
 
-    let mut domain_database = DomainDatabase{config_list: soa_entries, ns_records: None, a_records: None, cname_records: None, mx_records: None, ptr_records: None };
-    
+    let mut domain_database = DomainDatabase {
+        config_list: soa_entries,
+        ns_records: None,
+        a_records: None,
+        cname_records: None,
+        mx_records: None,
+        ptr_records: None,
+    };
+
     // Capturar todas as entries
     for cap in regex_entry.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
@@ -92,39 +96,41 @@ pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
         let entry_type: String = cap[2].to_string();
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
-        let priority: Option<u16> = None;
-
+        let priority: Option<u16> = match cap.len() {
+            6 => Some(cap[5].parse::<u16>().unwrap()),
+            _ => None,
+        };
         for (variable, value) in variables.iter() {
             name = name.replace(variable, value);
             temp_ttl = temp_ttl.replace(variable, value).parse().unwrap();
         }
 
-        if !name.ends_with("."){
-            let main_domain = match variables.get("@"){
+        if !name.ends_with(".") {
+            let main_domain = match variables.get("@") {
                 Some(value) => value,
-                None => panic!("Non complete domain name found in entry and no @ variable defined")
+                None => panic!("Non complete domain name found in entry and no @ variable defined"),
             };
-           name = name.add(".").add(main_domain);
+            name = name.add(".").add(main_domain);
         }
 
         let ttl: u32 = temp_ttl.parse().unwrap();
 
         let temp_entry: Entry = Entry {
-            name:name.to_string(),
+            name: name.to_string(),
             entry_type: entry_type.to_owned(),
             value,
             ttl,
             priority,
         };
 
-        match entry_type.as_str(){
-            "NS" => domain_database.add_ns_record(name.to_owned(),temp_entry),
-            "A"  => domain_database.add_a_record(temp_entry),
+        match entry_type.as_str() {
+            "NS" => domain_database.add_ns_record(name.to_owned(), temp_entry),
+            "A" => domain_database.add_a_record(temp_entry),
             "CNAME" => domain_database.add_cname_record(temp_entry),
             "MX" => domain_database.add_mx_record(temp_entry),
             "PTR" => domain_database.add_ptr_record(temp_entry),
-            _ => continue
-        } 
+            _ => continue,
+        }
     }
 
     // // Prints de Debug temporario
