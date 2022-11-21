@@ -38,7 +38,7 @@ pub fn start_sp(config_path: String, port: u16) {
         };
     }
 
-    let socket = match UdpSocket::bind(format!("127.0.0.1:{port}",)) {
+    let socket = match UdpSocket::bind(format!("0.0.0.0:{port}",)) {
         Ok(socket) => socket,
         Err(_) => panic!("Could not bind socket"),
     };
@@ -190,16 +190,18 @@ fn client_handler(
         };
 
         for entry in non_extra_values {
-            let a_record: Entry = match a_records.iter().find(|entry| entry.name == entry.value) {
-                Some(record) => record.to_owned(),
-                None => panic!("No A record found for entry value {}", entry.value),
-            };
-            extra_values.push(DNSSingleResponse {
+            let a_record: Entry;
+            if let Some(record) = a_records.iter().find(|entry| entry.name == entry.value) {
+                a_record = record.to_owned();
+                extra_values.push(DNSSingleResponse {
                 name: a_record.name,
                 type_of_value: a_record.entry_type,
                 value: a_record.value,
                 ttl: a_record.ttl,
             })
+            } else {
+                println!("No translate found. need to fix this part of the code");
+            };
         }
         dns_message.data.extra_values = Some(extra_values.to_owned());
         dns_message.header.number_of_extra_values = match extra_values.len().try_into() {
@@ -212,7 +214,7 @@ fn client_handler(
 
     let addr = src_addr.ip();
     let port = src_addr.port();
-    let send_socket = match UdpSocket::bind("127.0.0.1:0") {
+    let send_socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => socket,
         Err(_) => panic!("Could not bind response socket"),
     };

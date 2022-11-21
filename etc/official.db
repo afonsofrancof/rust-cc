@@ -1,0 +1,15 @@
+# DNS database file for the official. domain 
+
+@ DEFAULT official.
+TTL DEFAULT 86400
+
+@ SOASP ns1.official. TTL
+@ SOAADMIN dns\.admin.official. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+official. NS ns1.toplevel.
+
+example A 0.0.0.0

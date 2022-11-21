@@ -11,7 +11,9 @@ TTL DEFAULT 86400
 @ SOAEXPIRE 604800 TTL
 
 @ NS ns1.root. TTL
-official. NS ns.official.toplevel.
+official. NS ns1.toplevel.
+monitor. NS ns1.toplevel.
+toplevel. NS ns1.toplevel.
 
-ns1.root. A 10.0.0.1
-official. A 10.0.0.2
+ns1.root. A 10.2.2.1 TTL
+ns1.toplevel. A 10.2.2.2 TTL
