@@ -1,6 +1,6 @@
 use clap::*;
 use core::panic;
-use my_dns::dns_make::{dns_send,dns_recv};
+use my_dns::dns_make::{dns_recv, dns_send};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
@@ -79,38 +79,40 @@ fn main() {
         None => "127.0.0.1:0".to_string(),
     };
 
+    println!("DNS Server IP: {}", server_ip);
+
     // Construir a mensagem de DNS a ser enviada e serialize
     let dns_message = query_builder(domain_name.to_string(), query_types, flag);
 
-    let recv_socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let recv_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
     let size_sent = match dns_send::send(dns_message, &recv_socket, server_ip) {
         Err(err) => panic!("{err}"),
         Ok(size_sent) => size_sent,
     };
 
-    let (dns_recv_message,src_addr) = match dns_recv::recv(&recv_socket){
+    let (dns_recv_message, src_addr) = match dns_recv::recv(&recv_socket) {
         Ok(response) => response,
-        Err(err) => panic!("{err}")
+        Err(err) => panic!("{err}"),
     };
 
-    println!("{}",dns_recv_message.get_string());
-   // match dns_recv_message.data.response_values {
-   //     Some(response_vec) => {
-   //         for (entry_type, entry_vector) in response_vec.iter() {
-   //             println!("{} Responses:", entry_type.to_string());
-   //             for entry in entry_vector {
-   //                 println!(
-   //                     "{} {} {} {}",
-   //                     entry.name, entry.type_of_value, entry.value, entry.ttl
-   //                 );
-   //             }
-   //             println!("\n---------");
-   //         }
-   //     }
-   //     None => { println!("No response values received");//NEED TO CHECK NS
-   //     }
-   // }
+    println!("{}", dns_recv_message.get_string());
+    // match dns_recv_message.data.response_values {
+    //     Some(response_vec) => {
+    //         for (entry_type, entry_vector) in response_vec.iter() {
+    //             println!("{} Responses:", entry_type.to_string());
+    //             for entry in entry_vector {
+    //                 println!(
+    //                     "{} {} {} {}",
+    //                     entry.name, entry.type_of_value, entry.value, entry.ttl
+    //                 );
+    //             }
+    //             println!("\n---------");
+    //         }
+    //     }
+    //     None => { println!("No response values received");//NEED TO CHECK NS
+    //     }
+    // }
 }
 
 fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
