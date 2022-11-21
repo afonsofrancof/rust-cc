@@ -65,8 +65,8 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         let entry_type: String = cap[2].to_string();
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
-        let priority: Option<u16> = match cap.len() {
-            6 => Some(cap[5].parse::<u16>().unwrap()),
+        let priority: Option<u16> = match cap.get(5) {
+            Some(p) => Some(p.as_str().parse::<u16>().unwrap()),
             _ => None,
         };
         for (variable, value) in variables.iter() {
@@ -104,8 +104,8 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         let entry_type: String = cap[2].to_string();
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
-        let priority: Option<u16> = match cap.len() {
-            6 => Some(cap[5].parse::<u16>().unwrap()),
+        let priority: Option<u16> = match cap.get(5) {
+            Some(p) => Some(p.as_str().parse::<u16>().unwrap()),
             _ => None,
         };
         for (variable, value) in variables.iter() {
