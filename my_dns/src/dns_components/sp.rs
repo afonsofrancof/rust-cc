@@ -102,6 +102,7 @@ fn client_handler(
                             records
                                 .values()
                                 .map(|entry| entry.to_owned())
+                                .map(|entry| entry.to_owned())
                                 .flatten()
                                 .collect(),
                         ),
@@ -191,14 +192,14 @@ fn client_handler(
 
         for entry in non_extra_values {
             let a_record: Entry;
-            if let Some(record) = a_records.iter().find(|entry| entry.name == entry.value) {
+            if let Some(record) = a_records.iter().find(|a_entry| a_entry.name == entry.value) {
                 a_record = record.to_owned();
                 extra_values.push(DNSSingleResponse {
-                name: a_record.name,
-                type_of_value: a_record.entry_type,
-                value: a_record.value,
-                ttl: a_record.ttl,
-            })
+                    name: a_record.name,
+                    type_of_value: a_record.entry_type,
+                    value: a_record.value,
+                    ttl: a_record.ttl,
+                })
             } else {
                 println!("No translate found. need to fix this part of the code");
             };

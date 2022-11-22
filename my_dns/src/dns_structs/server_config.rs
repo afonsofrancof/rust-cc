@@ -25,12 +25,12 @@ impl ServerConfig {
         }
     }
     pub fn add_domain_db(&mut self, domain: String, db_path: String) {
-        match  self.domain_configs.get_mut(&domain) {
+        match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
                 domain_config.set_domain_db(db_path);
             }
             None => {
-                let mut dc = DomainConfig::new();                
+                let mut dc = DomainConfig::new();
                 dc.set_domain_db(db_path);
                 self.domain_configs.insert(domain, dc);
             }
@@ -38,19 +38,19 @@ impl ServerConfig {
     }
     pub fn set_domain_sp(&mut self, domain: String, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
-        let addr_string_parsed = match addr_vec.len(){
+        let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("5353"),
-            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
-            _ => panic!("Malformed IP on {domain}'s SP entry")
+            2 => addr_string,
+            _ => panic!("Malformed IP on {domain}'s SP entry"),
         };
-        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
-            Err(_) => panic!("Could not parse {domain} SP's IP") 
+            Err(_) => panic!("Could not parse {domain} SP's IP"),
         };
         match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
                 domain_config.set_domain_sp(addr);
-            },
+            }
             None => {
                 let mut dc = DomainConfig::new();
                 dc.set_domain_sp(addr);
@@ -60,21 +60,19 @@ impl ServerConfig {
     }
     pub fn add_domain_ss(&mut self, domain: String, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
-        let addr_string_parsed = match addr_vec.len(){
+        let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("5353"),
-            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
-            _ => panic!("Malformed IP on {domain}'s SS entry")
+            2 => addr_string,
+            _ => panic!("Malformed IP on {domain}'s SS entry"),
         };
-        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
-            Err(_) => panic!("Could not parse an SP IP from {domain}") 
+            Err(_) => panic!("Could not parse an SP IP from {domain}"),
         };
         match self.domain_configs.get_mut(&domain) {
-            Some(domain_config) => {
-                domain_config.add_domain_ss(addr)
-            },
+            Some(domain_config) => domain_config.add_domain_ss(addr),
             None => {
-                let mut dc = DomainConfig::new();  
+                let mut dc = DomainConfig::new();
                 dc.add_domain_ss(addr);
                 self.domain_configs.insert(domain, dc);
             }
@@ -94,14 +92,14 @@ impl ServerConfig {
     }
     pub fn add_server_dd(&mut self, domain: String, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
-        let addr_string_parsed = match addr_vec.len(){
+        let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("5353"),
-            2 => addr_vec[0].to_string().add(":").add(&addr_vec[1].to_string()),
-            _ => panic!("Malformed IP on DD entry for {domain}")
+            2 => addr_string,
+            _ => panic!("Malformed IP on DD entry for {domain}"),
         };
-        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()){
+        let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
-            Err(_) => panic!("Could not parse one of the Server's DD fields") 
+            Err(_) => panic!("Could not parse one of the Server's DD fields"),
         };
         match &mut self.server_dds {
             Some(server_dds) => {
@@ -114,7 +112,7 @@ impl ServerConfig {
             }
         };
     }
-    
+
     pub fn set_all_log(&mut self, all_log: String) {
         self.all_log = all_log;
     }
@@ -122,14 +120,14 @@ impl ServerConfig {
         self.st_db = path;
     }
 
-    pub fn get_domain_configs(&self) -> HashMap<String, DomainConfig>{
+    pub fn get_domain_configs(&self) -> HashMap<String, DomainConfig> {
         self.domain_configs.to_owned()
     }
 }
 
-impl DomainConfig{
-    pub fn new() -> Self{
-        DomainConfig { 
+impl DomainConfig {
+    pub fn new() -> Self {
+        DomainConfig {
             domain_db: None,
             domain_sp: None,
             domain_ss: None,
@@ -149,19 +147,19 @@ impl DomainConfig{
         self.domain_log.to_owned()
     }
 
-    pub fn set_domain_db(&mut self, db_path: String){
+    pub fn set_domain_db(&mut self, db_path: String) {
         self.domain_db = Some(db_path);
     }
-    pub fn set_domain_sp(&mut self, sp_addr: SocketAddr){
+    pub fn set_domain_sp(&mut self, sp_addr: SocketAddr) {
         self.domain_sp = Some(sp_addr);
     }
-    pub fn add_domain_ss(&mut self, ss_addr: SocketAddr){
+    pub fn add_domain_ss(&mut self, ss_addr: SocketAddr) {
         match &mut self.domain_ss {
-           Some(servers) => servers.push(ss_addr),
-           None => {self.domain_ss = Some(vec![ss_addr])}
+            Some(servers) => servers.push(ss_addr),
+            None => self.domain_ss = Some(vec![ss_addr]),
         }
     }
-    pub fn set_domain_log(&mut self, log_path: String){
+    pub fn set_domain_log(&mut self, log_path: String) {
         self.domain_log = log_path;
     }
 }
