@@ -90,6 +90,7 @@ fn client_handler(
 
     if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain) {
         if sub_domain_name == domain_name.to_owned() {
+            print
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
             let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
@@ -195,11 +196,10 @@ fn client_handler(
             if let Some(record) = a_records.iter().find(|a_entry| a_entry.name == entry.value) {
                 a_record = record.to_owned();
                 extra_values.push(DNSSingleResponse {
-                    name: a_record.name,
-                    type_of_value: a_record.entry_type,
-                    value: a_record.value,
-                    ttl: a_record.ttl,
-                })
+                type_of_value: a_record.entry_type,
+                value: a_record.value,
+                ttl: a_record.ttl,
+            })
             } else {
                 println!("No translate found. need to fix this part of the code");
             };
