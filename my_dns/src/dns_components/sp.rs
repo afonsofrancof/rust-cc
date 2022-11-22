@@ -77,9 +77,11 @@ fn client_handler(
         .iter()
         .clone()
         .filter(|(domain_name, _domain_db)| {
-            ".".to_string()
-                .add(&queried_domain)
-                .ends_with(&".".to_string().add(domain_name))
+            let dn = match domain_name.as_str() {
+                "." => ".".to_string(),
+                _ => ".".to_string().add(domain_name),
+            };
+            ".".to_string().add(&queried_domain).ends_with(&dn)
         })
         .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
             domain_name1.cmp(domain_name2)
@@ -91,6 +93,7 @@ fn client_handler(
     };
 
     if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain.to_owned()) {
+        println!("SubDomain:{} ,Domain:{}", sub_domain_name, domain_name);
         if sub_domain_name == domain_name.to_owned() {
             let query_types = dns_message.data.query_info.type_of_value.clone();
 

@@ -27,20 +27,19 @@ impl DomainDatabase {
     pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<DNSEntry>)> {
         match &self.ns_records {
             Some(hm) => {
-                let biggest_match = match hm
+                let biggest_match = hm
                     .iter()
                     .clone()
                     .filter(|(domain_name, _domain_ns_vec)| {
-                        ".".to_string()
-                            .add(&domain)
-                            .ends_with(&".".to_string().add(domain_name))
+                        println!("subdomain: {domain}, domain: {domain_name}");
+                        let dn = match domain_name.as_str() {
+                            "." => ".".to_string(),
+                            _ => ".".to_string().add(domain_name),
+                        };
+                        ".".to_string().add(&domain).ends_with(&dn)
                     })
-                    .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| dn1.cmp(dn2))
-                    .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned()))
-                {
-                    Some((dn, entry_vec)) => Some((dn, entry_vec)),
-                    None => None,
-                };
+                    .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| dn1.len().cmp(&dn2.len()))
+                    .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned()));
                 biggest_match
             }
             None => None,
