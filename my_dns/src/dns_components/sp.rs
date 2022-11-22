@@ -88,7 +88,7 @@ fn client_handler(
         ),
     };
 
-    if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain) {
+    if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain.to_owned()) {
         if sub_domain_name == domain_name.to_owned() {
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
@@ -104,6 +104,7 @@ fn client_handler(
                                 .map(|entry| entry.to_owned())
                                 .map(|entry| entry.to_owned())
                                 .flatten()
+                                .filter(|entry| entry.name == queried_domain)
                                 .collect(),
                         ),
                         None => None,
@@ -217,7 +218,7 @@ fn client_handler(
     };
 }
 
-fn db_sync_listener(db: HashMap<String,DomainDatabase>) {
+fn db_sync_listener(db: HashMap<String, DomainDatabase>) {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
         Err(err) => panic!("Couldn't bind tcp listener"),
@@ -228,11 +229,11 @@ fn db_sync_listener(db: HashMap<String,DomainDatabase>) {
     }
 }
 
-fn db_sync_handler(tcp_stream: TcpStream, db: HashMap<String,DomainDatabase>) {
+fn db_sync_handler(tcp_stream: TcpStream, db: HashMap<String, DomainDatabase>) {
     // ler dominio pedido na stream
     // enviar numero de entries da db desse dominio
-    
+
     // percorrer todos os elementos da db
     // to string em todas as entries
-    // sequence number u16 antes de enviar 
+    // sequence number u16 antes de enviar
 }
