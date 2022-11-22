@@ -36,7 +36,7 @@ pub fn start_ss(config_path: String, port: u16) {
         let domain_db = DomainDatabase::new();
         db.insert(domain_name.to_string(), domain_db);
 
-        let mutable_db = Arc::new(Mutex::new(domain_db));
+        let mut mutable_db = Arc::new(Mutex::new(domain_db));
 
         let handler = thread::spawn(move || db_sync(domain_name.to_string(), sp_addr, mutable_db));
     }
@@ -56,20 +56,32 @@ fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<DomainDatabas
 
     tcp_stream.read(buf);
     
-    let entries: u16 = buf.into();
+    let entries: u16 = (buf[0].to_owned() as u16 * 256) + buf[1].to_owned() as u16 ;
     
     // confirmacao resolver isto ... 
-    tcp_stream.write(entries);
+    tcp_stream.write(buf);
     
     let mut unparsed_db: Vec<&str> = Vec::with_capacity(entries.try_into().unwrap()); 
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
     for i in 0..entries { 
-        tcp_stream.read(buf);
         let seq_number_bin: &mut [u8];
-        buf.take(2).read(seq_number_bin);
+        tcp_stream.take(2).read(seq_number_bin);
         let seq_number: u16 = (seq_number_bin[0] as u16 * 256) + seq_number_bin[1] as u16;
+
+        tcp_stream.read(buf);
         let line = from_utf8(buf).unwrap();
-        let entry = domain_database_parse::parse_from_str(String::from(line));
-        unparsed_db.insert(i.try_into().unwrap(), entry);
+        unparsed_db.insert(i.try_into().unwrap(), line);
+    };
+    let db_txt: String = String::new(); 
+
+    for line in unparsed_db {
+        db_txt.push_str(line);
     }
+    let domain_db: DomainDatabase = match domain_database_parse::parse_from_str(db_txt) {
+        Ok(db) => db,
+        Err(err) => panic!("Coudn't parse database")
+    };
+    
+    let mut locked_db = db.lock().unwrap();
+    *locked_db = domain_db;
 }

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{SocketAddr, UdpSocket},
+    net::{SocketAddr, UdpSocket, TcpStream, TcpListener},
     ops::Add,
     thread,
 };
@@ -9,7 +9,7 @@ use crate::{
     dns_make::dns_send,
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
-        dns_message::{DNSMessage, DNSSingleResponse, QueryType},
+        dns_message::{DNSMessage, DNSEntry, QueryType},
         domain_database_struct::{DomainDatabase, Entry},
         server_config::ServerConfig,
     },
@@ -92,7 +92,7 @@ fn client_handler(
         if sub_domain_name == domain_name.to_owned() {
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
-            let mut response_map: HashMap<QueryType, Vec<DNSSingleResponse>> = HashMap::new();
+            let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
 
             for query_type in query_types.into_iter() {
                 let response = match query_type {
@@ -117,7 +117,7 @@ fn client_handler(
                 match response {
                     Some(res) => {
                         for entry in res {
-                            response_vec.push(DNSSingleResponse {
+                            response_vec.push(DNSEntry {
                                 name: entry.name.to_owned(),
                                 type_of_value: entry.entry_type.clone(),
                                 value: entry.value.to_owned(),
@@ -157,7 +157,7 @@ fn client_handler(
         }
         let mut authorities_values = Vec::new();
         for entry in subdomain_ns_list.iter().map(|entry| entry.to_owned()) {
-            authorities_values.push(DNSSingleResponse {
+            authorities_values.push(DNSEntry {
                 name: entry.name,
                 type_of_value: entry.entry_type,
                 value: entry.value,
@@ -182,7 +182,7 @@ fn client_handler(
                     .values()
                     .map(|val| val.to_owned())
                     .flatten()
-                    .collect::<Vec<DNSSingleResponse>>();
+                    .collect::<Vec<DNSEntry>>();
                 all_vals.append(&mut authorities_values.clone());
                 all_vals
             }
@@ -193,7 +193,7 @@ fn client_handler(
             let a_record: Entry;
             if let Some(record) = a_records.iter().find(|entry| entry.name == entry.value) {
                 a_record = record.to_owned();
-                extra_values.push(DNSSingleResponse {
+                extra_values.push(DNSEntry {
                 name: a_record.name,
                 type_of_value: a_record.entry_type,
                 value: a_record.value,
@@ -223,4 +223,19 @@ fn client_handler(
         Ok(num_bytes) => num_bytes,
         Err(err) => panic!("{err}"),
     };
+}
+
+fn db_sync_listener() {
+    let listener = match TcpListener::bind("0.0.0.0:8000") {
+        Ok(lst) => lst,
+        Err(err) => panic!("Couldn't bind tcp listener")
+    };
+
+    for stream in listener.incoming() {
+        // make thread for every ss that asks for connection
+    }
+}
+
+fn db_sync_handler() {
+     
 }
