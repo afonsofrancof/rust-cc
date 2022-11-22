@@ -217,7 +217,7 @@ fn client_handler(
     };
 }
 
-fn db_sync_listener() {
+fn db_sync_listener(db: HashMap<String,DomainDatabase>) {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
         Err(err) => panic!("Couldn't bind tcp listener"),
@@ -228,4 +228,11 @@ fn db_sync_listener() {
     }
 }
 
-fn db_sync_handler(tcp_stream: TcpStream) {}
+fn db_sync_handler(tcp_stream: TcpStream, db: HashMap<String,DomainDatabase>) {
+    // ler dominio pedido na stream
+    // enviar numero de entries da db desse dominio
+    
+    // percorrer todos os elementos da db
+    // to string em todas as entries
+    // sequence number u16 antes de enviar 
+}

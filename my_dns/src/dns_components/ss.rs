@@ -1,5 +1,5 @@
 use std::{
-    io::prelude::*,
+    io::{prelude::*, BufWriter,BufReader},
     collections::HashMap,
     str::from_utf8,
     string::String,
@@ -33,43 +33,48 @@ pub fn start_ss(config_path: String, port: u16) {
                 continue
             }
         };
-        let handler = thread::spawn(move || db_sync(domain_name.to_string(), sp_addr, Arc::clone(&mutable_db)));
+
+        let dn_copy = domain_name.to_string();
+        let mutable_db_copy = Arc::clone(&mutable_db);
+        let handler = thread::spawn(move || db_sync(dn_copy, sp_addr, mutable_db_copy));
     }
 }
 
 fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<HashMap<String,DomainDatabase>>>) {
     
-    let mut tcp_stream = match TcpStream::connect(sp_addr) {
+    let stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
         Err(err) => {panic!("Could't connect to addr {}", sp_addr);}
     };
 
-    tcp_stream.write(domain_name.as_bytes());
+    stream.try_clone().unwrap().write(domain_name.as_bytes());
 
-    let mut buf = &mut [0u8;1000];
+    let mut buf = [0u8;1000];
 
-    tcp_stream.read(buf);
+    stream.try_clone().unwrap().read(&mut buf);
     
     let entries: u16 = (buf[0].to_owned() as u16 * 256) + buf[1].to_owned() as u16 ;
     
     // confirmacao resolver isto ... 
-    tcp_stream.write(buf);
-    
-    let mut unparsed_db: Vec<&str> = Vec::with_capacity(entries.try_into().unwrap()); 
+    stream.try_clone().unwrap().write(&mut buf);
+    let mut unparsed_db: Vec<String> = Vec::with_capacity(entries.try_into().unwrap()); 
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
     for i in 0..entries { 
-        let mut seq_number_bin = &mut [0u8,2];
-        tcp_stream.take(2).read(seq_number_bin);
+        let mut ebuf = [0u8;1000];
+        let seq_number_bin = &mut [0u8,2];
+        stream.try_clone().unwrap().take(2).read(seq_number_bin);
         let seq_number: u16 = (seq_number_bin[0] as u16 * 256) + seq_number_bin[1] as u16;
 
-        tcp_stream.read(buf);
-        let line = from_utf8(buf).unwrap();
-        unparsed_db.insert(i.try_into().unwrap(), line);
+        stream.try_clone().unwrap().read(&mut ebuf);
+        let line_bin = ebuf.clone().to_vec();
+        let line = String::from_utf8(line_bin).unwrap().to_owned();
+
+        unparsed_db.insert(seq_number.to_owned().into(), line);
     };
-    let db_txt: String = String::new(); 
+    let mut db_txt: String = String::new(); 
 
     for line in unparsed_db {
-        db_txt.push_str(line);
+        db_txt.push_str(line.as_str());
     }
     let domain_db: DomainDatabase = match domain_database_parse::parse_from_str(db_txt) {
         Ok(db) => db,
