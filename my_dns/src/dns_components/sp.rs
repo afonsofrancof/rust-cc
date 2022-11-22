@@ -90,6 +90,7 @@ fn client_handler(
 
     if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain) {
         if sub_domain_name == domain_name.to_owned() {
+            print
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
             let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
