@@ -6,6 +6,7 @@ use my_dns::dns_structs::dns_message::{
 };
 use rand::random;
 use std::net::UdpSocket;
+use std::ops::Add;
 
 fn main() {
     // Argumentos de Input para fazer queries
@@ -82,21 +83,21 @@ fn main() {
     println!("DNS Server IP: {}", server_ip);
 
     // Construir a mensagem de DNS a ser enviada e serialize
-    let dns_message = query_builder(domain_name.to_string(), query_types, flag);
+    let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
 
-    let recv_socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
-    let size_sent = match dns_send::send(dns_message, &recv_socket, server_ip) {
+    let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, server_ip.to_owned()) {
         Err(err) => panic!("{err}"),
         Ok(size_sent) => size_sent,
     };
 
-    let (dns_recv_message, src_addr) = match dns_recv::recv(&recv_socket) {
+    let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
         Ok(response) => response,
         Err(err) => panic!("{err}"),
     };
 
-    println!("{}", dns_recv_message.get_string());
+    receive_client(&mut dns_message, dns_recv_message, &socket);
     // match dns_recv_message.data.response_values {
     //     Some(response_vec) => {
     //         for (entry_type, entry_vector) in response_vec.iter() {
@@ -113,6 +114,67 @@ fn main() {
     //     None => { println!("No response values received");//NEED TO CHECK NS
     //     }
     // }
+}
+
+fn receive_client(dns_message: &mut DNSMessage, dns_recv_message: DNSMessage, socket: &UdpSocket) {
+    if let Some(response_code) = dns_recv_message.header.response_code {
+        match response_code {
+            0 => println!("{}", dns_recv_message.get_string()),
+            1 => match dns_recv_message.data.authorities_values {
+                Some(ref auth_values) => {
+                    let new_ip;
+                    for val in auth_values {
+                        if !val.value.chars().all(|c| {
+                            vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
+                        }) {
+                            new_ip =
+                                match dns_recv_message.data.extra_values {
+                                    Some(ref extra_values) => {
+                                        match extra_values.iter().clone().find(|extra| {
+                                            extra.name.to_owned() == val.value.to_owned()
+                                        }) {
+                                            Some(ns) => ns.value.to_owned(),
+                                            None => continue,
+                                        }
+                                    }
+                                    None => "No extra values found".to_string(),
+                                };
+                        } else {
+                            new_ip = val.value.to_owned();
+                        }
+                        let addr_vec = new_ip.split(':').collect::<Vec<_>>();
+                        let addr_string_parsed = match addr_vec.len() {
+                            1 => addr_vec[0].to_string().add(":").add("5353"),
+                            2 => new_ip,
+                            _ => panic!("Malformed IP on {}", val.name),
+                        };
+                        println!(
+                            "Received non final query, sending to {}",
+                            addr_string_parsed
+                        );
+                        let _size_sent = match dns_send::send(
+                            dns_message.to_owned(),
+                            &socket,
+                            addr_string_parsed,
+                        ) {
+                            Err(err) => panic!("{err}"),
+                            Ok(size_sent) => size_sent,
+                        };
+                        let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
+                            Ok(response) => response,
+                            Err(_err) => panic!("No response received"),
+                        };
+                        receive_client(dns_message, dns_recv_message_new, &socket);
+                        break;
+                    }
+                }
+                None => {}
+            },
+            2 => println!("Domain not found"),
+            3 => println!("Malformed query"),
+            _ => println!("Response code invalid"),
+        }
+    }
 }
 
 fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {

@@ -10,7 +10,7 @@ TTL DEFAULT 86400
 @ SOARETRY 3600 TTL
 @ SOAEXPIRE 604800 TTL
 
-@ NS ns1.smaller.example.com TTL
+@ NS ns1.smaller.example.com. TTL
 
 ns1 A 10.2.2.3 TTL
 www A 10.3.3.3 TTL 200
