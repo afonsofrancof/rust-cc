@@ -5,6 +5,8 @@ use std::{
     thread,
 };
 
+use serde_json::map::Entry;
+
 use crate::{
     dns_make::dns_send,
     dns_parse::{domain_database_parse, server_config_parse},
@@ -96,22 +98,57 @@ fn client_handler(
 
             for query_type in query_types.into_iter() {
                 let response = match query_type {
-                    QueryType::A => db.get_a_records(),
+                    QueryType::A => match db.get_a_records() {
+                        Some(records) => Some(
+                            records
+                                .iter()
+                                .filter(|entry| entry.name == queried_domain)
+                                .map(|entry| entry.to_owned())
+                                .collect::<Vec<DNSEntry>>(),
+                        ),
+                        None => None,
+                    },
                     QueryType::NS => match db.get_ns_records() {
                         Some(records) => Some(
                             records
                                 .values()
                                 .map(|entry| entry.to_owned())
-                                .map(|entry| entry.to_owned())
+                                // .map(|entry| entry.to_owned())
                                 .flatten()
-                                .filter(|entry| entry.name == queried_domain)
                                 .collect(),
                         ),
                         None => None,
                     },
-                    QueryType::MX => db.get_mx_records(),
-                    QueryType::CNAME => db.get_cname_records(),
-                    QueryType::PTR => db.get_ptr_records(),
+                    QueryType::MX => match db.get_mx_records() {
+                        Some(records) => Some(
+                            records
+                                .iter()
+                                .filter(|entry| entry.name == queried_domain)
+                                .map(|entry| entry.to_owned())
+                                .collect::<Vec<DNSEntry>>(),
+                        ),
+                        None => None,
+                    },
+                    QueryType::CNAME => match db.get_cname_records() {
+                        Some(records) => Some(
+                            records
+                                .into_iter()
+                                .filter(|entry| entry.name == queried_domain)
+                                .map(|entry| entry.to_owned())
+                                .collect::<Vec<DNSEntry>>(),
+                        ),
+                        None => None,
+                    },
+                    QueryType::PTR => match db.get_ptr_records() {
+                        Some(records) => Some(
+                            records
+                                .iter()
+                                .filter(|entry| entry.name == queried_domain)
+                                .map(|entry| entry.to_owned())
+                                .collect::<Vec<DNSEntry>>(),
+                        ),
+                        None => None,
+                    },
                 };
                 println!("Got values from DB");
                 let mut response_vec = Vec::new();
