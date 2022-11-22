@@ -21,6 +21,17 @@ pub struct Entry {
 }
 
 impl DomainDatabase {
+    pub fn new() -> Self {
+        DomainDatabase { 
+            config_list: HashMap::new(), 
+            ns_records: None, 
+            a_records: None, 
+            cname_records: None, 
+            mx_records: None, 
+            ptr_records: None
+        }
+    }
+
     pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<Entry>)> {
         match &self.ns_records {
             Some(hm) => {

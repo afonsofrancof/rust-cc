@@ -20,9 +20,9 @@ pub struct DNSMessageHeaders {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessageData {
     pub query_info: DNSQueryInfo,
-    pub response_values: Option<HashMap<QueryType, Vec<DNSSingleResponse>>>,
-    pub authorities_values: Option<Vec<DNSSingleResponse>>,
-    pub extra_values: Option<Vec<DNSSingleResponse>>,
+    pub response_values: Option<HashMap<QueryType, Vec<DNSEntry>>>,
+    pub authorities_values: Option<Vec<DNSEntry>>,
+    pub extra_values: Option<Vec<DNSEntry>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
@@ -32,11 +32,12 @@ pub struct DNSQueryInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct DNSSingleResponse {
+pub struct DNSEntry {
     pub name: String,
     pub type_of_value: String,
     pub value: String,
     pub ttl: u32,
+    pub priority: Option<u16>
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -204,19 +205,24 @@ impl DNSQueryInfo {
     }
 }
 
-impl DNSSingleResponse {
+impl DNSEntry {
     pub fn new() -> Self {
-        DNSSingleResponse {
+        DNSEntry {
             name: String::new(), 
             type_of_value: String::new(), 
             value: String::new(), 
-            ttl: 0 
+            ttl: 0,
+            priority: None
         }
     }
 
     // falta a priority
     pub fn to_string(&self) -> String {
-        format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
+        if let Some(priority) = self.priority{
+            format!("{} {} {} {} {}",self.name,self.type_of_value,self.value,self.ttl, priority)
+        } else{
+            format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
+        }
     }
 }
 
