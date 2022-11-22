@@ -1,38 +1,30 @@
-use super::dns_message::QueryType;
+use super::dns_message::{DNSEntry, QueryType};
 use crate::dns_parse::domain_database_parse;
 use std::{collections::HashMap, ops::Add};
 
 #[derive(Clone)]
 pub struct DomainDatabase {
-    pub config_list: HashMap<String, Entry>,
-    pub ns_records: Option<HashMap<String, Vec<Entry>>>,
-    pub a_records: Option<Vec<Entry>>,
-    pub cname_records: Option<Vec<Entry>>,
-    pub mx_records: Option<Vec<Entry>>,
-    pub ptr_records: Option<Vec<Entry>>,
-}
-#[derive(Clone)]
-pub struct Entry {
-    pub name: String,
-    pub entry_type: String,
-    pub value: String,
-    pub ttl: u32,
-    pub priority: Option<u16>,
+    pub config_list: HashMap<String, DNSEntry>,
+    pub ns_records: Option<HashMap<String, Vec<DNSEntry>>>,
+    pub a_records: Option<Vec<DNSEntry>>,
+    pub cname_records: Option<Vec<DNSEntry>>,
+    pub mx_records: Option<Vec<DNSEntry>>,
+    pub ptr_records: Option<Vec<DNSEntry>>,
 }
 
 impl DomainDatabase {
     pub fn new() -> Self {
-        DomainDatabase { 
-            config_list: HashMap::new(), 
-            ns_records: None, 
-            a_records: None, 
-            cname_records: None, 
-            mx_records: None, 
-            ptr_records: None
+        DomainDatabase {
+            config_list: HashMap::new(),
+            ns_records: None,
+            a_records: None,
+            cname_records: None,
+            mx_records: None,
+            ptr_records: None,
         }
     }
 
-    pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<Entry>)> {
+    pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<DNSEntry>)> {
         match &self.ns_records {
             Some(hm) => {
                 let biggest_match = match hm
@@ -54,23 +46,23 @@ impl DomainDatabase {
             None => None,
         }
     }
-    pub fn get_ns_records(&self) -> Option<HashMap<String, Vec<Entry>>> {
+    pub fn get_ns_records(&self) -> Option<HashMap<String, Vec<DNSEntry>>> {
         self.ns_records.to_owned()
     }
-    pub fn get_a_records(&self) -> Option<Vec<Entry>> {
+    pub fn get_a_records(&self) -> Option<Vec<DNSEntry>> {
         self.a_records.to_owned()
     }
-    pub fn get_cname_records(&self) -> Option<Vec<Entry>> {
+    pub fn get_cname_records(&self) -> Option<Vec<DNSEntry>> {
         self.cname_records.to_owned()
     }
-    pub fn get_mx_records(&self) -> Option<Vec<Entry>> {
+    pub fn get_mx_records(&self) -> Option<Vec<DNSEntry>> {
         self.mx_records.to_owned()
     }
-    pub fn get_ptr_records(&self) -> Option<Vec<Entry>> {
+    pub fn get_ptr_records(&self) -> Option<Vec<DNSEntry>> {
         self.ptr_records.to_owned()
     }
 
-    pub fn add_ns_record(&mut self, domain_name: String, entry: Entry) {
+    pub fn add_ns_record(&mut self, domain_name: String, entry: DNSEntry) {
         match &mut self.ns_records {
             Some(hm) => match hm.get_mut(&domain_name) {
                 Some(records) => {
@@ -87,7 +79,7 @@ impl DomainDatabase {
             }
         }
     }
-    pub fn add_a_record(&mut self, entry: Entry) {
+    pub fn add_a_record(&mut self, entry: DNSEntry) {
         match &mut self.a_records {
             Some(records) => {
                 records.push(entry);
@@ -97,7 +89,7 @@ impl DomainDatabase {
             }
         };
     }
-    pub fn add_cname_record(&mut self, entry: Entry) {
+    pub fn add_cname_record(&mut self, entry: DNSEntry) {
         match &mut self.cname_records {
             Some(records) => {
                 records.push(entry);
@@ -107,7 +99,7 @@ impl DomainDatabase {
             }
         };
     }
-    pub fn add_mx_record(&mut self, entry: Entry) {
+    pub fn add_mx_record(&mut self, entry: DNSEntry) {
         match &mut self.mx_records {
             Some(records) => {
                 records.push(entry);
@@ -117,7 +109,7 @@ impl DomainDatabase {
             }
         }
     }
-    pub fn add_ptr_record(&mut self, entry: Entry) {
+    pub fn add_ptr_record(&mut self, entry: DNSEntry) {
         match &mut self.ptr_records {
             Some(records) => {
                 records.push(entry);

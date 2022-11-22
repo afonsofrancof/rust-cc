@@ -1,5 +1,5 @@
-use crate::dns_structs::dns_message::QueryType;
-use crate::dns_structs::domain_database_struct::{DomainDatabase, Entry};
+use crate::dns_structs::dns_message::{DNSEntry, QueryType};
+use crate::dns_structs::domain_database_struct::DomainDatabase;
 use core::panic;
 use regex::Regex;
 use std::collections::HashMap;
@@ -56,13 +56,13 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
     }
 
     // Mapa que vai conter todas as SOAs entries tendo o tipo de SOA como key (aka SOAADMIN,SOAEXPIRE, etc)
-    let mut soa_entries: HashMap<String, Entry> = HashMap::new();
+    let mut soa_entries: HashMap<String, DNSEntry> = HashMap::new();
 
     // Capturar todas as SOAs entries
     for cap in regex_soa.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
         let mut name: String = cap[1].to_string();
-        let entry_type: String = cap[2].to_string();
+        let type_of_value: String = cap[2].to_string();
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
         let priority: Option<u16> = match cap.get(5) {
@@ -78,9 +78,9 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
 
         soa_entries.insert(
             cap[2].to_string(),
-            Entry {
+            DNSEntry {
                 name,
-                entry_type,
+                type_of_value,
                 value,
                 ttl,
                 priority,
@@ -101,7 +101,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
     for cap in regex_entry.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
         let mut name: String = cap[1].to_string();
-        let entry_type: String = cap[2].to_string();
+        let type_of_value: String = cap[2].to_string();
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
         let priority: Option<u16> = match cap.get(5) {
@@ -123,15 +123,15 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
 
         let ttl: u32 = temp_ttl.parse().unwrap();
 
-        let temp_entry: Entry = Entry {
+        let temp_entry: DNSEntry = DNSEntry {
             name: name.to_string(),
-            entry_type: entry_type.to_owned(),
+            type_of_value: type_of_value.to_owned(),
             value,
             ttl,
             priority,
         };
 
-        match entry_type.as_str() {
+        match type_of_value.as_str() {
             "NS" => domain_database.add_ns_record(name.to_owned(), temp_entry),
             "A" => domain_database.add_a_record(temp_entry),
             "CNAME" => domain_database.add_cname_record(temp_entry),

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{SocketAddr, UdpSocket, TcpStream, TcpListener},
+    net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
     ops::Add,
     thread,
 };
@@ -9,8 +9,8 @@ use crate::{
     dns_make::dns_send,
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
-        dns_message::{DNSMessage, DNSEntry, QueryType},
-        domain_database_struct::{DomainDatabase, Entry},
+        dns_message::{DNSEntry, DNSMessage, QueryType},
+        domain_database_struct::DomainDatabase,
         server_config::ServerConfig,
     },
 };
@@ -90,7 +90,6 @@ fn client_handler(
 
     if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain) {
         if sub_domain_name == domain_name.to_owned() {
-            print
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
             let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
@@ -119,13 +118,7 @@ fn client_handler(
                 match response {
                     Some(res) => {
                         for entry in res {
-                            response_vec.push(DNSEntry {
-                                name: entry.name.to_owned(),
-                                type_of_value: entry.entry_type.clone(),
-                                value: entry.value.to_owned(),
-                                ttl: entry.ttl,
-                                priority: None
-                            });
+                            response_vec.push(entry);
                         }
                         response_map.insert(query_type, response_vec);
                     }
@@ -160,13 +153,7 @@ fn client_handler(
         }
         let mut authorities_values = Vec::new();
         for entry in subdomain_ns_list.iter().map(|entry| entry.to_owned()) {
-            authorities_values.push(DNSEntry {
-                name: entry.name,
-                type_of_value: entry.entry_type,
-                value: entry.value,
-                ttl: entry.ttl,
-                priority: None
-            })
+            authorities_values.push(entry)
         }
         dns_message.data.authorities_values = Some(authorities_values.to_owned());
         dns_message.header.number_of_authorities = match authorities_values.len().try_into() {
@@ -194,16 +181,16 @@ fn client_handler(
         };
 
         for entry in non_extra_values {
-            let a_record: Entry;
+            let a_record: DNSEntry;
             if let Some(record) = a_records.iter().find(|a_entry| a_entry.name == entry.value) {
                 a_record = record.to_owned();
                 extra_values.push(DNSEntry {
-                name: a_record.name,
-                type_of_value: a_record.entry_type,
-                value: a_record.value,
-                ttl: a_record.ttl,
-                priority: None
-            })
+                    name: a_record.name,
+                    type_of_value: a_record.type_of_value,
+                    value: a_record.value,
+                    ttl: a_record.ttl,
+                    priority: None,
+                })
             } else {
                 println!("No translate found. need to fix this part of the code");
             };
@@ -233,7 +220,7 @@ fn client_handler(
 fn db_sync_listener() {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
-        Err(err) => panic!("Couldn't bind tcp listener")
+        Err(err) => panic!("Couldn't bind tcp listener"),
     };
 
     for stream in listener.incoming() {
@@ -241,8 +228,4 @@ fn db_sync_listener() {
     }
 }
 
-fn db_sync_handler(tcp_stream: TcpStream) {
-     
-
-
-}
+fn db_sync_handler(tcp_stream: TcpStream) {}
