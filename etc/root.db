@@ -3,17 +3,18 @@
 @ DEFAULT .
 TTL DEFAULT 86400
 
-@ SOASP ns1.root. TTL
+@ SOASP servidor1. TTL
 @ SOAADMIN dns\.admin.root. 200
 @ SOASERIAL 0117102022 TTL
 @ SOAREFRESH 14400 TTL
 @ SOARETRY 3600 TTL
 @ SOAEXPIRE 604800 TTL
 
-@ NS ns1.root. TTL
-official. NS ns1.toplevel.
-monitor. NS ns1.toplevel.
-toplevel. NS ns1.toplevel.
+@ NS servidor1. TTL
 
-ns1.root. A 10.2.2.1 TTL
-ns1.toplevel. A 10.2.2.2 TTL
+official. NS servidor2.official. TTL
+monitor. NS foca.monitor. TTL
+
+servidor1. A 10.2.2.1 TTL
+servidor2.official. A 10.2.2.2 TTL
+foca.monitor. A 10.3.3.3 TTL

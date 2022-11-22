@@ -1,0 +1,16 @@
+# DNS database file for the example.official. domain 
+
+@ DEFAULT example.official.
+TTL DEFAULT 86400
+
+@ SOASP golfinho.example.official. TTL
+@ SOAADMIN dns\.admin.example.official. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+example.official. NS golfinho.example.official. TTL
+
+golfinho A 10.3.3.2 TTL
+www A 10.3.3.1 TTL
