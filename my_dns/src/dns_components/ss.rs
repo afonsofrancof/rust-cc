@@ -23,6 +23,7 @@ pub fn start_ss(config_path: String, port: u16) {
     };
     let db : HashMap<String,DomainDatabase> = HashMap::new();
     
+    let mut mutable_db : Arc<Mutex<HashMap<String,DomainDatabase>>>  = Arc::new(Mutex::new(db));
     // ver o ip do sp -> criar thread para fazer o pedido  
     for (domain_name, domain_config) in config.get_domain_configs().iter() {
         let sp_addr = match domain_config.get_domain_sp() {
@@ -32,18 +33,11 @@ pub fn start_ss(config_path: String, port: u16) {
                 continue
             }
         };
-
-        let domain_db = DomainDatabase::new();
-        db.insert(domain_name.to_string(), domain_db);
-
-        let mut mutable_db = Arc::new(Mutex::new(domain_db));
-
-        let handler = thread::spawn(move || db_sync(domain_name.to_string(), sp_addr, mutable_db));
+        let handler = thread::spawn(move || db_sync(domain_name.to_string(), sp_addr, Arc::clone(&mutable_db)));
     }
-
 }
 
-fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<DomainDatabase>>) {
+fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<HashMap<String,DomainDatabase>>>) {
     
     let mut tcp_stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
@@ -64,7 +58,7 @@ fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<DomainDatabas
     let mut unparsed_db: Vec<&str> = Vec::with_capacity(entries.try_into().unwrap()); 
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
     for i in 0..entries { 
-        let seq_number_bin: &mut [u8];
+        let mut seq_number_bin = &mut [0u8,2];
         tcp_stream.take(2).read(seq_number_bin);
         let seq_number: u16 = (seq_number_bin[0] as u16 * 256) + seq_number_bin[1] as u16;
 
@@ -83,5 +77,5 @@ fn db_sync(domain_name: String, sp_addr: SocketAddr, db: Arc<Mutex<DomainDatabas
     };
     
     let mut locked_db = db.lock().unwrap();
-    *locked_db = domain_db;
+    locked_db.insert(domain_name,domain_db);
 }
