@@ -267,6 +267,13 @@ fn db_sync_listener(db: HashMap<String, DomainDatabase>) {
     for stream in listener.incoming() {
         // falta fazer o check se o ss que se ta a tentar conecatar e realmente ss do dominio
         // make thread for every ss that asks for connection
+        if let Ok(stream) = stream {
+            let db_clone = db.to_owned();
+            thread::spawn(move || db_sync_handler(stream, db_clone));
+        } else {
+            println!("Couldn't connect to incoming tcp stream");
+        }
+
     }
 }
 
