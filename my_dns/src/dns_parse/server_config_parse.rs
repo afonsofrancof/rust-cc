@@ -41,6 +41,12 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
         } else {
             name = cap[1].to_string();
         }
+        println!(
+            "{} {} {}",
+            cap[1].to_string(),
+            cap[2].to_string(),
+            cap[3].to_string()
+        );
         match &cap[2] {
             "DB" => server_config.add_domain_db(name, cap[3].to_string()),
             "SS" => server_config.add_domain_ss(name, cap[3].to_string()),

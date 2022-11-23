@@ -39,10 +39,11 @@ impl ServerConfig {
     pub fn set_domain_sp(&mut self, domain: String, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
         let addr_string_parsed = match addr_vec.len() {
-            1 => addr_vec[0].to_string().add(":").add("5353"),
+            1 => addr_vec[0].to_string().add(":").add("8000"),
             2 => addr_string,
             _ => panic!("Malformed IP on {domain}'s SP entry"),
         };
+        println!("Address string parsed: {}", addr_string_parsed);
         let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
             Err(_) => panic!("Could not parse {domain} SP's IP"),
