@@ -1,5 +1,6 @@
 use std::sync::Mutex;
-use std::thread;
+use std::thread::{self, sleep};
+use std::time::Duration;
 use std::{
     collections::HashMap,
     io::{Read, Write},
@@ -19,8 +20,8 @@ pub fn db_sync_listener(db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
         // falta fazer o check se o ss que se ta a tentar conecatar e realmente ss do dominio
         // make thread for every ss that asks for connection
         if let Ok(mut stream) = stream {
-            let db_clone = db.clone();
-            thread::spawn(move || db_sync_handler(&mut stream, db_clone));
+            let new_db = db.clone();
+            thread::spawn(move || db_sync_handler(&mut stream, new_db));
         } else {
             println!("Couldn't connect to incoming tcp stream");
         }
@@ -39,8 +40,9 @@ fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainD
     let domain_name = String::from_utf8(domain_name_bin).unwrap();
     println!("Lenght socket:{}", domain_name.len());
 
-    let db_lock = db.lock().unwrap();
-    let domain_db = match db_lock.get(&domain_name) {
+    let db_mut = db.lock().unwrap();
+
+    let domain_db = match db_mut.get(&domain_name) {
         Some(ddb) => ddb,
         None => panic!("Database not found for {}", domain_name.to_owned()),
     };
@@ -98,18 +100,20 @@ fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainD
 
     let _recived_entry_num = (entry_num_bin[0] as u16 * 256) + entry_num_bin[1] as u16;
     let mut seq_number: u16 = 0;
+    let mut ebuf: Vec<u8> = Vec::new();
+    stream.set_nodelay(true).unwrap();
     for entry in entries_to_send {
         println!(
             "{} {} {} {}",
             entry.name, entry.type_of_value, entry.value, entry.ttl
         );
-        let mut ebuf: Vec<u8> = Vec::new();
         ebuf.push((seq_number >> 8) as u8);
         ebuf.push(seq_number as u8);
         ebuf.append(&mut entry.get_string().as_bytes().to_vec());
-
-        stream.write(ebuf.as_slice()).unwrap();
+        stream.write_all(ebuf.as_slice()).unwrap();
         stream.flush().unwrap();
+        ebuf.clear();
         seq_number += 1;
+        thread::sleep(Duration::new(0, 100000));
     }
 }

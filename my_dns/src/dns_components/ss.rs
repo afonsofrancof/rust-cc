@@ -35,15 +35,15 @@ pub fn db_sync(
     let mut unparsed_db: Vec<String> = Vec::with_capacity(entries.clone().into());
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
     println!("Number of entries: {}", entries);
+    let mut ebuf = [0u8; 1000];
     for i in 0..entries {
-        let mut ebuf = [0u8; 1000];
-
         let num_bytes = match stream.read(&mut ebuf) {
             Ok(bytes) => bytes,
             Err(err) => panic!("{err}"),
         };
 
         let seq_number: u16 = (ebuf[0] as u16 * 256) + ebuf[1] as u16;
+
         let line_bin = ebuf[2..num_bytes - 2].to_vec();
 
         let mut line = String::from_utf8(line_bin).unwrap().to_owned();

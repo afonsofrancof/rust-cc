@@ -23,9 +23,9 @@ impl DomainDatabase {
             ptr_records: None,
         }
     }
-        
-    pub fn get_config_list(&self) -> HashMap<String, DNSEntry>{
-       self.config_list.to_owned()
+
+    pub fn get_config_list(&self) -> HashMap<String, DNSEntry> {
+        self.config_list.to_owned()
     }
 
     pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<DNSEntry>)> {

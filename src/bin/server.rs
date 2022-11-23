@@ -28,21 +28,6 @@ fn main() {
         .version("1.0.0")
         .about("A CLI tool to make DNS requests")
         .args([
-            Arg::new("primary")
-                .action(ArgAction::SetTrue)
-                .long("primary")
-                .group("server_type")
-                .help("Creates a primary DNS server to a domain"),
-            Arg::new("secondary")
-                .action(ArgAction::SetTrue)
-                .long("secondary")
-                .group("server_type")
-                .help("Creates a secondary DNS server to a domain"),
-            Arg::new("resolver")
-                .action(ArgAction::SetTrue)
-                .long("resolver")
-                .group("server_type")
-                .help("Creates a DNS resolver"),
             Arg::new("config_path")
                 .short('c')
                 .long("config-path")
@@ -54,11 +39,6 @@ fn main() {
                 .required(true)
                 .help("The port the server will listen on"),
         ])
-        .group(
-            ArgGroup::new("server_type")
-                .args(["primary", "secondary", "resolver"])
-                .required(true),
-        )
         .get_matches();
 
     //test if path exists
@@ -90,8 +70,10 @@ pub fn start_server(config_path: String, port: u16) {
     let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
     let mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(database));
 
+    let domain_configs = config.get_domain_configs();
+
     //Add SP's to DB
-    for (domain_name, domain_config) in config.get_domain_configs().iter() {
+    for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
             match domain_database_parse::get(db) {
                 Ok(db_parsed) => mutable_db
@@ -100,20 +82,21 @@ pub fn start_server(config_path: String, port: u16) {
                     .insert(domain_name.to_string(), db_parsed),
                 Err(err) => panic!("{err}"),
             };
-        } else {
-            if let Some(sp_addr) = domain_config.get_domain_sp() {
-                let dn_copy = domain_name.to_string();
-                let mutable_db_copy = Arc::clone(&mutable_db);
-                let handler = thread::spawn(move || db_sync(dn_copy, sp_addr, mutable_db_copy));
-                handle_vec.push(handler);
-            }
         }
     }
-
     //START SP LISTENER
     let db_clone = mutable_db.clone();
     thread::spawn(move || db_sync_listener(db_clone));
 
+    //Add SS to DB
+    for (domain_name, domain_config) in domain_configs.iter() {
+        if let Some(sp_addr) = domain_config.get_domain_sp() {
+            let dn_copy = domain_name.to_string();
+            let mutable_db_copy = Arc::clone(&mutable_db);
+            let handler = thread::spawn(move || db_sync(dn_copy, sp_addr, mutable_db_copy));
+            handle_vec.push(handler);
+        }
+    }
     let socket = match UdpSocket::bind(format!("0.0.0.0:{port}",)) {
         Ok(socket) => socket,
         Err(_) => panic!("Could not bind socket"),
