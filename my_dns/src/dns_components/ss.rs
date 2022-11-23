@@ -1,52 +1,16 @@
 use std::{
     collections::HashMap,
-    io::{prelude::*, BufReader, BufWriter},
-    net::{SocketAddr, TcpStream, UdpSocket},
-    str::from_utf8,
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
     string::String,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
 };
 
 use crate::{
-    dns_parse::{domain_database_parse, server_config_parse},
-    dns_structs::{
-        dns_message::DNSMessage, domain_database_struct::DomainDatabase,
-        server_config::ServerConfig,
-    },
+    dns_parse::domain_database_parse, dns_structs::domain_database_struct::DomainDatabase,
 };
 
-pub fn start_ss(config_path: String, port: u16) {
-    let config: ServerConfig = match server_config_parse::get(config_path) {
-        Ok(config) => config,
-        Err(_err) => panic!("Server config path not found!"),
-    };
-    let db: HashMap<String, DomainDatabase> = HashMap::new();
-
-    let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
-    let mut mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(db));
-    // ver o ip do sp -> criar thread para fazer o pedido
-    for (domain_name, domain_config) in config.get_domain_configs().iter() {
-        let sp_addr = match domain_config.get_domain_sp() {
-            Some(addr) => addr,
-            None => {
-                println!("SP not found for {} skipping domain", domain_name);
-                continue;
-            }
-        };
-
-        let dn_copy = domain_name.to_string();
-        let mutable_db_copy = Arc::clone(&mutable_db);
-        let handler = thread::spawn(move || db_sync(dn_copy, sp_addr, mutable_db_copy));
-        handle_vec.push(handler);
-    }
-
-    for handle in handle_vec {
-        handle.join().unwrap();
-    }
-}
-
-fn db_sync(
+pub fn db_sync(
     domain_name: String,
     sp_addr: SocketAddr,
     db: Arc<Mutex<HashMap<String, DomainDatabase>>>,
