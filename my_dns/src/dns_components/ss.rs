@@ -15,34 +15,30 @@ pub fn db_sync(
     sp_addr: SocketAddr,
     db: Arc<Mutex<HashMap<String, DomainDatabase>>>,
 ) {
-    let stream = match TcpStream::connect(sp_addr) {
+    let mut stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
         Err(err) => {
             panic!("Could't connect to addr {}", sp_addr);
         }
     };
 
-    stream
-        .try_clone()
-        .unwrap()
-        .write(domain_name.as_bytes())
-        .unwrap();
+    stream.write(domain_name.as_bytes()).unwrap();
 
     let mut buf = [0u8; 1000];
 
-    stream.try_clone().unwrap().read(&mut buf);
+    stream.read(&mut buf);
 
     let entries: u16 = (buf[0].to_owned() as u16 * 256) + buf[1].to_owned() as u16;
 
     // confirmacao resolver isto ...
-    stream.try_clone().unwrap().write(&mut buf);
-    let mut unparsed_db: Vec<String> = Vec::with_capacity(entries.try_into().unwrap());
+    stream.write(&mut buf);
+    let mut unparsed_db: Vec<String> = Vec::with_capacity(entries.clone().into());
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
     println!("Number of entries: {}", entries);
     for i in 0..entries {
         let mut ebuf = [0u8; 1000];
 
-        let num_bytes = match stream.try_clone().unwrap().read(&mut ebuf) {
+        let num_bytes = match stream.read(&mut ebuf) {
             Ok(bytes) => bytes,
             Err(err) => panic!("{err}"),
         };

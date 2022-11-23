@@ -18,20 +18,20 @@ pub fn db_sync_listener(db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
     for stream in listener.incoming() {
         // falta fazer o check se o ss que se ta a tentar conecatar e realmente ss do dominio
         // make thread for every ss that asks for connection
-        if let Ok(stream) = stream {
+        if let Ok(mut stream) = stream {
             let db_clone = db.clone();
-            thread::spawn(move || db_sync_handler(stream, db_clone));
+            thread::spawn(move || db_sync_handler(&mut stream, db_clone));
         } else {
             println!("Couldn't connect to incoming tcp stream");
         }
     }
 }
 
-fn db_sync_handler(stream: TcpStream, db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
+fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
     // ler dominio pedido na stream
     // enviar numero de entries da db desse dominio
     let mut buf = [0u8; 1000];
-    let byte_num = match stream.try_clone().unwrap().read(&mut buf) {
+    let byte_num = match stream.read(&mut buf) {
         Ok(bytes) => bytes,
         Err(err) => panic!("{err}"),
     };
@@ -92,13 +92,9 @@ fn db_sync_handler(stream: TcpStream, db: Arc<Mutex<HashMap<String, DomainDataba
     let mut entry_num_bin = [0u8, 2];
     entry_num_bin[0] = (entry_num >> 8) as u8;
     entry_num_bin[1] = entry_num as u8;
-    stream.try_clone().unwrap().write(&mut entry_num_bin);
+    stream.write(&mut entry_num_bin);
 
-    stream
-        .try_clone()
-        .unwrap()
-        .read(&mut entry_num_bin)
-        .unwrap();
+    stream.read(&mut entry_num_bin).unwrap();
 
     let _recived_entry_num = (entry_num_bin[0] as u16 * 256) + entry_num_bin[1] as u16;
     let mut seq_number: u16 = 0;
@@ -111,9 +107,9 @@ fn db_sync_handler(stream: TcpStream, db: Arc<Mutex<HashMap<String, DomainDataba
         ebuf.push((seq_number >> 8) as u8);
         ebuf.push(seq_number as u8);
         ebuf.append(&mut entry.get_string().as_bytes().to_vec());
-        let mut new_stream = stream.try_clone().unwrap();
-        new_stream.write_all(ebuf.as_slice()).unwrap();
-        new_stream.flush().unwrap();
+
+        stream.write(ebuf.as_slice()).unwrap();
+        stream.flush().unwrap();
         seq_number += 1;
     }
 }
