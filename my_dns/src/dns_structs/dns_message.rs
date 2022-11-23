@@ -59,8 +59,8 @@ impl DNSMessage {
     pub fn get_string(&self) -> String {
         let mut res = String::new();
 
-        res.push_str(self.header.to_string().as_str());
-        res.push_str(self.data.to_string().as_str());
+        res.push_str(self.header.get_string().as_str());
+        res.push_str(self.data.get_string().as_str());
         res
     }
 }
@@ -94,7 +94,7 @@ impl DNSMessageHeaders {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         let mut rc: u8 = 0;
         let mut nov: u8 = 0;
         let mut noa: u8 = 0;
@@ -140,15 +140,15 @@ impl DNSMessageData {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         let mut res = String::new();
         
-        res.push_str(self.query_info.to_string().as_str());
+        res.push_str(self.query_info.get_string().as_str());
         res.push_str("\n");
 
         let rv = match &self.response_values {
             Some(hm) => {
-                let vec_str: Vec<String> = hm.values().flatten().map(|x| x.to_string()).collect();
+                let vec_str: Vec<String> = hm.values().flatten().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
                     entry.push_str(",\n");
@@ -162,7 +162,7 @@ impl DNSMessageData {
 
         let av = match &self.authorities_values {
             Some(vec) => {
-                let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
+                let vec_str: Vec<String> = vec.iter().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
                     entry.push_str(",\n");
@@ -176,7 +176,7 @@ impl DNSMessageData {
 
         let ev = match &self.extra_values {
             Some(vec) => {
-                let vec_str: Vec<String> = vec.iter().map(|x| x.to_string()).collect();
+                let vec_str: Vec<String> = vec.iter().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
                     entry.push_str(",\n");
@@ -199,8 +199,8 @@ impl DNSQueryInfo {
         }
     }
 
-    pub fn to_string(&self) -> String {
-        let tov: String = self.type_of_value.iter().map(|x| x.to_string()).collect();
+    pub fn get_string(&self) -> String {
+        let tov: String = self.type_of_value.iter().map(|x| x.get_string()).collect();
         format!("{}, {}",self.name, tov)
     }
 }
@@ -217,7 +217,7 @@ impl DNSEntry {
     }
 
     // falta a priority
-    pub fn to_string(&self) -> String {
+    pub fn get_string(&self) -> String {
         if let Some(priority) = self.priority{
             format!("{} {} {} {} {}",self.name,self.type_of_value,self.value,self.ttl, priority)
         } else{
@@ -227,7 +227,7 @@ impl DNSEntry {
 }
 
 impl QueryType {
-    pub fn to_string(&self) -> &'static str {
+    pub fn get_string(&self) -> &'static str {
         match self {
             QueryType::NS => "NS",
             QueryType::A => "A",
