@@ -67,26 +67,23 @@ pub fn start_server(config_path: String, port: u16) {
 
     let mut database: HashMap<String, DomainDatabase> = HashMap::new();
 
-    let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
-    let mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(database));
-
     let domain_configs = config.get_domain_configs();
 
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
             match domain_database_parse::get(db) {
-                Ok(db_parsed) => mutable_db
-                    .lock()
-                    .unwrap()
-                    .insert(domain_name.to_string(), db_parsed),
+                Ok(db_parsed) => database.insert(domain_name.to_string(), db_parsed),
                 Err(err) => panic!("{err}"),
             };
         }
     }
     //START SP LISTENER
-    let db_clone = mutable_db.clone();
+    let db_clone = database.clone();
     thread::spawn(move || db_sync_listener(db_clone));
+
+    let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
+    let mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(database));
 
     //Add SS to DB
     for (domain_name, domain_config) in domain_configs.iter() {
