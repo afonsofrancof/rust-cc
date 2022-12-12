@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{Read, Write},
-    net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
+    net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
@@ -46,7 +45,6 @@ fn main() {
         Some(path) => path,
         None => panic!("No config path provided."),
     };
-
     let port: u16 = match arguments.get_one::<String>("port") {
         Some(port) => match port.parse() {
             Ok(ok_port) => ok_port,

@@ -52,7 +52,6 @@ fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainD
     for entry in domain_db.get_config_list().values() {
         entries_to_send.push(entry.to_owned());
     }
-
     // get all ns entries
     for ns_records in domain_db.get_ns_records().unwrap().values() {
         for entry in ns_records {
