@@ -3,17 +3,16 @@ pub struct Domain {
 }
 
 impl Domain {
-
-
     pub fn new(input: String) -> Domain {
-        // Check if the input string is empty or consists of only a `"."` character.
-        // If so, create a `parts` vector with one empty string element.
+        // If the input string is empty or consists of only a `"."` character,
+        // create a `parts` vector that is empty.
         let parts: Vec<String>;
         if input.is_empty() || input == "." {
-            parts = vec!["".to_string()];
+            parts = vec![];
         } else {
-            // Otherwise, split the input string on the `.` character using `split_terminator()`
-            // and store the resulting parts in a vector of strings.
+            // Otherwise, split the input string on the `.` character using
+            // `split_terminator()` and store the resulting parts in a vector
+            // of strings.
             parts = input.split_terminator('.').map(|s| s.to_string()).collect();
         }
 
@@ -43,11 +42,9 @@ impl Domain {
             .all(|(a, b)| a == b)
     }
 
-
     pub fn is_root(&self) -> bool {
-        // Check if the domain is the root by checking if it has only one part
-        // and that part is an empty string.
-        self.parts.len() == 1 && self.parts[0].is_empty()
+        // Check if the domain is the root by checking if it has no parts.
+        self.parts.is_empty()
     }
 
     fn to_string(&self) -> String {
@@ -61,6 +58,7 @@ impl Domain {
         }
     }
 
+
     pub fn getparts(&self) -> &Vec<String> {
         &self.parts
     }
@@ -70,18 +68,16 @@ impl Domain {
     }
 }
 
-
-
 #[test]
 fn test_new_with_empty_string() {
     let domain = Domain::new("".to_string());
-    assert_eq!(domain.getparts(), &vec!["".to_string()]);
+    assert!(domain.is_root());
 }
 
 #[test]
 fn test_new_with_dot() {
     let domain = Domain::new(".".to_string());
-    assert_eq!(domain.getparts(), &vec!["".to_string()]);
+    assert!(domain.is_root());
 }
 
 #[test]
@@ -102,9 +98,6 @@ fn test_is_subdomain_of() {
     assert!(!example_com.is_subdomain_of(&foo_example_com));
     assert!(bar_foo_example_com.is_subdomain_of(&foo_example_com));
     assert!(!foo_example_com.is_subdomain_of(&bar_foo_example_com));
-
-    assert!(foo_example_com.is_subdomain_of(&root_with_dot));
-    assert!(foo_example_com.is_subdomain_of(&root_without_dot));
     assert!(!root_with_dot.is_subdomain_of(&foo_example_com));
     assert!(!root_without_dot.is_subdomain_of(&foo_example_com));
 }
@@ -129,6 +122,6 @@ fn test_to_string() {
     domain.set_parts(vec!["example".to_string(), "com".to_string()]);
     assert_eq!(domain.to_string(), "example.com");
 
-    domain.set_parts(vec!["".to_string()]);
+    domain.set_parts(vec![]);
     assert_eq!(domain.to_string(), ".");
 }
