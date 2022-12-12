@@ -10,7 +10,7 @@ use std::{
 
 use crate::dns_structs::{dns_message::DNSEntry, domain_database_struct::DomainDatabase};
 
-pub fn db_sync_listener(db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
+pub fn db_sync_listener(db: HashMap<String, DomainDatabase>) {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
         Err(err) => panic!("Couldn't bind tcp listener"),
@@ -28,7 +28,7 @@ pub fn db_sync_listener(db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
     }
 }
 
-fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainDatabase>>>) {
+fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) {
     // ler dominio pedido na stream
     // enviar numero de entries da db desse dominio
     let mut buf = [0u8; 1000];
@@ -40,20 +40,24 @@ fn db_sync_handler(stream: &mut TcpStream, db: Arc<Mutex<HashMap<String, DomainD
     let domain_name = String::from_utf8(domain_name_bin).unwrap();
     println!("Lenght socket:{}", domain_name.len());
 
-    let db_mut = db.lock().unwrap();
-
-    let domain_db = match db_mut.get(&domain_name) {
+    let domain_db = match db.get(&domain_name) {
         Some(ddb) => ddb,
         None => panic!("Database not found for {}", domain_name.to_owned()),
     };
 
     let mut entries_to_send: Vec<DNSEntry> = Vec::new();
     // get all SOA
-    for entry in domain_db.get_config_list().values() {
-        entries_to_send.push(entry.to_owned());
-    }
+    let soas = domain_db.get_soa_records();
+
+    entries_to_send.push(soas.primary_ns);
+    entries_to_send.push(soas.contact_email);
+    entries_to_send.push(soas.serial);
+    entries_to_send.push(soas.refresh);
+    entries_to_send.push(soas.retry);
+    entries_to_send.push(soas.expire);
+
     // get all ns entries
-    for ns_records in domain_db.get_ns_records().unwrap().values() {
+    for ns_records in domain_db.get_ns_records().values() {
         for entry in ns_records {
             entries_to_send.push(entry.to_owned());
         }

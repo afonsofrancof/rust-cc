@@ -165,17 +165,17 @@ fn client_handler(
                         ),
                         None => None,
                     },
-                    QueryType::NS => match db.get_ns_records() {
-                        Some(records) => Some(
+                    QueryType::NS => {
+                        let records = db.get_ns_records();
+                        Some(
                             records
                                 .values()
                                 .map(|entry| entry.to_owned())
                                 // .map(|entry| entry.to_owned())
                                 .flatten()
                                 .collect(),
-                        ),
-                        None => None,
-                    },
+                        )
+                    }
                     QueryType::MX => match db.get_mx_records() {
                         Some(records) => Some(
                             records

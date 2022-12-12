@@ -1,0 +1,98 @@
+pub struct Domain {
+    parts: Vec<String>,
+}
+
+impl Domain {
+    pub fn new(input: String) -> Domain {
+        // Split the input string on the `.` character and store the resulting
+        // parts in a vector of strings.
+        let parts: Vec<String> = input.split('.').map(|s| s.to_string()).collect();
+
+        Domain { parts }
+    }
+
+    pub fn is_subdomain_of(&self, other: &Domain) -> bool {
+        // Check if `self` is a subdomain of `other` by comparing each part of
+        // `self` to the corresponding part of `other` starting from the end
+        // of both vectors.
+        self.parts.iter().rev().zip(other.parts.iter().rev()).all(|(a, b)| a == b)
+    }
+
+    pub fn is_root(&self) -> bool {
+        // Check if the domain is the root by checking if it has only one part
+        // and that part is an empty string.
+        self.parts.len() == 1 && self.parts[0].is_empty()
+    }
+
+    fn to_string(&self) -> String {
+        if self.is_root() {
+            // If the domain is the root, return a single dot.
+            ".".to_string()
+        } else {
+            // Otherwise, join the parts of the domain with `.` characters and
+            // return the resulting string.
+            self.parts.join(".")
+        }
+    }
+
+    pub fn getparts(&self) -> &Vec<String> {
+        &self.parts
+    }
+
+    pub fn set_parts(&mut self, new_parts: Vec<String>) {
+        self.parts = new_parts;
+    }
+}
+
+#[test]
+fn test_new() {
+    let domain = Domain::new("www.example.com".to_string());
+    assert_eq!(domain.getparts(), &vec!["www", "example", "com"]);
+
+    let domain = Domain::new(".com".to_string());
+    assert_eq!(domain.getparts(), &vec!["", "com"]);
+
+    let domain = Domain::new(".".to_string());
+    assert_eq!(domain.getparts(), &vec![""]);
+}
+
+#[test]
+fn test_is_subdomain_of() {
+    let domain1 = Domain::new("www.example.com".to_string());
+    let domain2 = Domain::new("example.com".to_string());
+    let domain3 = Domain::new("com".to_string());
+    let domain4 = Domain::new("example.org".to_string());
+    let domain5 = Domain::new("www.example.org".to_string());
+    let domain6 = Domain::new("".to_string());
+
+    assert!(domain1.is_subdomain_of(&domain2));
+    assert!(domain1.is_subdomain_of(&domain3));
+    assert!(!domain1.is_subdomain_of(&domain4));
+    assert!(!domain1.is_subdomain_of(&domain5));
+    assert!(!domain1.is_subdomain_of(&domain6));
+}
+
+#[test]
+fn test_is_root() {
+    let domain1 = Domain::new("www.example.com".to_string());
+    let domain2 = Domain::new("".to_string());
+
+    assert!(!domain1.is_root());
+    assert!(domain2.is_root());
+}
+
+#[test]
+fn test_to_string() {
+    let domain1 = Domain::new("www.example.com".to_string());
+    let domain2 = Domain::new("".to_string());
+
+    assert_eq!(domain1.to_string(), "www.example.com");
+    assert_eq!(domain2.to_string(), ".");
+}
+
+#[test]
+fn test_set_parts() {
+let mut domain = Domain::new("www.example.com".to_string());
+domain.set_parts(vec!["foo".to_string(), "bar".to_string(), "baz".to_string()]);
+assert_eq!(domain.getparts(), &vec!["foo", "bar", "baz"]);}
+

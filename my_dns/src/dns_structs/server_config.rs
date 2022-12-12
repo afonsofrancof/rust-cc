@@ -1,13 +1,13 @@
 use std::{collections::HashMap, net::SocketAddr, ops::Add};
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct ServerConfig {
     domain_configs: HashMap<String, DomainConfig>,
     server_dds: Option<HashMap<String, SocketAddr>>,
     all_log: String,
     st_db: String,
 }
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct DomainConfig {
     domain_db: Option<String>,
     domain_sp: Option<SocketAddr>,
