@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{Read, Write},
-    net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
+    net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
@@ -46,7 +45,6 @@ fn main() {
         Some(path) => path,
         None => panic!("No config path provided."),
     };
-
     let port: u16 = match arguments.get_one::<String>("port") {
         Some(port) => match port.parse() {
             Ok(ok_port) => ok_port,
@@ -167,17 +165,17 @@ fn client_handler(
                         ),
                         None => None,
                     },
-                    QueryType::NS => match db.get_ns_records() {
-                        Some(records) => Some(
+                    QueryType::NS => {
+                        let records = db.get_ns_records();
+                        Some(
                             records
                                 .values()
                                 .map(|entry| entry.to_owned())
                                 // .map(|entry| entry.to_owned())
                                 .flatten()
                                 .collect(),
-                        ),
-                        None => None,
-                    },
+                        )
+                    }
                     QueryType::MX => match db.get_mx_records() {
                         Some(records) => Some(
                             records

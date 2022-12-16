@@ -56,8 +56,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
     }
 
     // Mapa que vai conter todas as SOAs entries tendo o tipo de SOA como key (aka SOAADMIN,SOAEXPIRE, etc)
-    let mut soa_entries: HashMap<String, DNSEntry> = HashMap::new();
-
+    let mut domain_database = DomainDatabase::new();
     // Capturar todas as SOAs entries
     for cap in regex_soa.captures_iter(&read) {
         // Podemos fazer error check nesta seccao do codigo
@@ -75,27 +74,23 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         }
 
         let ttl: u32 = temp_ttl.parse().unwrap();
-
-        soa_entries.insert(
-            cap[2].to_string(),
-            DNSEntry {
-                name,
-                type_of_value,
-                value,
-                ttl,
-                priority,
-            },
-        );
+        let entry = DNSEntry {
+            name,
+            type_of_value,
+            value,
+            ttl,
+            priority,
+        };
+        match &cap[2] {
+            "SOASP" => domain_database.soa_entries.primary_ns = entry,
+            "SOAADMIN" => domain_database.soa_entries.contact_email = entry,
+            "SOASERIAL" => domain_database.soa_entries.serial = entry,
+            "SOAREFRESH" => domain_database.soa_entries.refresh = entry,
+            "SOARETRY" => domain_database.soa_entries.retry = entry,
+            "SOAEXPIRE" => domain_database.soa_entries.expire = entry,
+            _ => panic!("SOA type does not exist")
+        }
     }
-
-    let mut domain_database = DomainDatabase {
-        config_list: soa_entries,
-        ns_records: None,
-        a_records: None,
-        cname_records: None,
-        mx_records: None,
-        ptr_records: None,
-    };
 
     // Capturar todas as entries
     for cap in regex_entry.captures_iter(&read) {

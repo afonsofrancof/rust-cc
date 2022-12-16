@@ -1,6 +1,14 @@
 use log::{error, info};
 use regex::Regex;
-use std::{collections::HashMap, fs::File, io::Read, net::SocketAddr, ops::Add, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::Read,
+    net::{IpAddr, SocketAddr},
+    ops::Add,
+    path::Path,
+    str::FromStr,
+};
 
 use crate::dns_structs::server_config::ServerConfig;
 
@@ -36,14 +44,15 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
 
     for cap in regex_variables.captures_iter(&read) {
         let name: String;
-        if !cap[1].ends_with(".") {
+        if !cap[1].ends_with(".") && &cap[1]!="all" && &cap[1]!="root" {
+
             name = cap[1].to_string().add(".")
         } else {
             name = cap[1].to_string();
         }
         println!(
             "{} {} {}",
-            cap[1].to_string(),
+            name,
             cap[2].to_string(),
             cap[3].to_string()
         );
@@ -62,4 +71,28 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
     }
 
     Ok(server_config)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_config_parse() {
+        let get_config = super::get("etc/test-config.conf".to_string());
+
+        let parsed_config = match get_config {
+            Ok(config) => config,
+            Err(err) => panic!("{err}"),
+        };
+
+        let mut server_config = super::ServerConfig::new();
+        server_config.add_domain_db("example.com.".to_owned(), "etc/example-com.db".to_string());
+        server_config.add_domain_ss("example.com.".to_owned(), "193.123.5.189".to_owned());
+        server_config.add_domain_ss("example.com.".to_owned(), "193.123.5.190:5353".to_owned());
+        server_config.add_server_dd("example.com.".to_owned(), "127.0.0.1".to_owned());
+        server_config.set_domain_log("example.com.".to_owned(), "logs/example-com.log".to_owned());
+        server_config.set_all_log("logs/all.log".to_owned());
+        server_config.set_st_db("etc/rootservers.db".to_owned());
+        
+        assert!(parsed_config==server_config);
+    }
 }
