@@ -35,12 +35,12 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         Regex::new(r"(?m)^([@A-Za-z.0-9-]+) DEFAULT ([A-Za-z.0-9\\.-]+)").unwrap();
 
     let regex_soa = Regex::new(
-        r"(?m)^([@A-Za-z.0-9-]+) (SOA[A-Z]+) ([A-Za-z.0-9\\.-]+) ([A-Z0-9]+)( [A-Z0-9]+)?",
+        r"(?m)^([@A-Za-z.0-9-]+) (SOA[A-Z]+) ([A-Za-z.0-9\\.-]+) ([A-Z0-9]+) ?([A-Z0-9]+)?",
     )
     .unwrap();
 
     let regex_entry = Regex::new(
-        r"(?m)^([@A-Za-z.0-9-]+) (NS|A|CNAME|MX|PTR) ([A-Za-z.0-9\\.-]+) ([A-Z0-9]+)( [A-Z0-9]+)?",
+        r"(?m)^([@A-Za-z.0-9-]+) (NS|A|CNAME|MX|PTR) ([A-Za-z.0-9\\.-]+) ([A-Z0-9]+) ?([A-Z0-9]+)?",
     )
     .unwrap();
 
@@ -100,7 +100,14 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
         let priority: Option<u16> = match cap.get(5) {
-            Some(p) => Some(p.as_str().parse::<u16>().unwrap()),
+            Some(p) => {
+                println!("Priority:{}",p.as_str());
+                match p.as_str().parse::<u16>(){
+                    Ok(nmbr) => Some(nmbr),
+                    Err(err) => panic!("{err}")
+                    
+                }
+            },
             _ => None,
         };
         for (variable, value) in variables.iter() {
@@ -134,7 +141,9 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
             "PTR" => domain_database.add_ptr_record(temp_entry),
             _ => continue,
         }
+        println!("Type of value {}",type_of_value.as_str());
     }
 
+    
     Ok(domain_database)
 }
