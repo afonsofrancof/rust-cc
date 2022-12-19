@@ -41,7 +41,7 @@ pub struct DNSEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum QueryType {
+pub enum  QueryType {
     NS,
     A,
     CNAME,
@@ -84,6 +84,7 @@ impl DNSMessageHeaders {
     // R+A => 0 1 1 = 3
     // Q+R => 1 1 0 = 6
     pub fn decode_flags(&self) -> Result<&str,&'static str> {
+        println!("FLAG => {}",self.flags);
         match self.flags {
             1 => Ok("A"),
             2 => Ok("R"),

@@ -47,7 +47,7 @@ impl Domain {
         self.parts.is_empty()
     }
 
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         if self.is_root() {
             // If the domain is the root, return a single dot.
             ".".to_string()
