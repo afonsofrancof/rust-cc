@@ -7,9 +7,12 @@ use std::{
 };
 
 use clap::*;
-use my_dns::dns_components::{
-    sp::{self, db_sync_listener},
-    ss::db_sync,
+use my_dns::{
+    dns_components::{
+        sp::{self, db_sync_listener},
+        ss::db_sync,
+    },
+    dns_structs::dns_message,
 };
 use my_dns::{
     dns_make::dns_send,
@@ -20,7 +23,7 @@ use my_dns::{
         server_config::ServerConfig,
     },
 };
-fn main() {
+pub fn main() {
     // Argumentos de input da CLI para definir quais e quantos servidores inicializar
     let arguments = Command::new("server")
         .author("Grupo 11")
@@ -53,10 +56,10 @@ fn main() {
         None => panic!("No port provided."),
     };
 
-    start_server(config_path.to_string(), port);
+    start_server(config_path.to_string(), port, false);
 }
 
-pub fn start_server(config_path: String, port: u16) {
+pub fn start_server(config_path: String, port: u16, once: bool) {
     // parsing da config
     let config: ServerConfig = match server_config_parse::get(config_path) {
         Ok(config) => config,
@@ -70,12 +73,18 @@ pub fn start_server(config_path: String, port: u16) {
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
+            println!("Domain {} found in config", domain_name);
             match domain_database_parse::get(db) {
-                Ok(db_parsed) => database.insert(domain_name.to_string(), db_parsed),
+                Ok(db_parsed) => {
+                    println!("DBPARSED {}",db_parsed.ns_records.len());
+                    database.insert(domain_name.to_string(), db_parsed);
+                    println!("Inserting domain db into database");
+                }
                 Err(err) => panic!("{err}"),
             };
         }
     }
+
     //START SP LISTENER
     let db_clone = database.clone();
     thread::spawn(move || db_sync_listener(db_clone));
@@ -105,8 +114,12 @@ pub fn start_server(config_path: String, port: u16) {
             Err(_) => panic!("Could not receive on socket"),
         };
         let new_db = mutable_db.clone();
-        let handler =
+        println!("Received request from {}",src_addr);
+        let _handler =
             thread::spawn(move || client_handler(buf.to_vec(), num_of_bytes, src_addr, new_db));
+        if once {
+            break;
+        };
     }
 }
 
@@ -243,6 +256,7 @@ fn client_handler(
                     Some(0)
                 }
             };
+            dns_message.header.flags = 1;
         } else {
             dns_message.header.response_code = Some(1);
         }
@@ -296,6 +310,7 @@ fn client_handler(
             Err(err) => panic!("{err}"),
         };
     } else {
+        println!("Entered Else");
         //FAZER RESOLVE DEPENDENDO DOS CAMPOS DD
     }
 
