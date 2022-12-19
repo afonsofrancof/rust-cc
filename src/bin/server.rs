@@ -77,8 +77,9 @@ pub fn start_server(config_path: String, port: u16) {
         }
     }
     //START SP LISTENER
+    let config_clone = config.clone();
     let db_clone = database.clone();
-    thread::spawn(move || db_sync_listener(db_clone));
+    thread::spawn(move || db_sync_listener(db_clone, config_clone));
 
     let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
     let mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(database));

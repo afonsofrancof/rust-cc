@@ -218,7 +218,7 @@ impl DNSEntry {
 
     // falta a priority
     pub fn get_string(&self) -> String {
-        if let Some(priority) = self.priority{
+        if let Some(priority) = self.priority {
             format!("{} {} {} {} {}",self.name,self.type_of_value,self.value,self.ttl, priority)
         } else{
             format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
