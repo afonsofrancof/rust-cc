@@ -14,9 +14,7 @@ TTL DEFAULT 86400
 
 @ NS ns1.example.com. TTL
 
-smaller.@ NS ns1.smaller.example.com. TTL
 
 ns1 A 10.2.2.2 TTL
-ns1.smaller A 10.2.2.3 TTL
 www A 10.3.3.1 TTL 200
 
