@@ -120,9 +120,21 @@ impl ServerConfig {
     pub fn set_st_db(&mut self, path: String) {
         self.st_db = path;
     }
-
     pub fn get_domain_configs(&self) -> HashMap<String, DomainConfig> {
         self.domain_configs.to_owned()
+    }
+    pub fn get_all_ss(&self) -> Vec<SocketAddr> {
+        let mut all_ss: Vec<SocketAddr> = Vec::new();
+        for domain_config in self.domain_configs.values() {
+            match domain_config.get_domain_ss() {
+                Some(ss_vec) => {
+                    let mut local_ss = ss_vec.clone();
+                    all_ss.append(&mut local_ss);
+                },
+                None => continue
+            }
+        }
+        return all_ss;
     }
 }
 
