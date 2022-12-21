@@ -45,7 +45,6 @@ impl DomainDatabase {
             .iter()
             .clone()
             .filter(|(domain_name, _domain_ns_vec)| {
-                println!("subdomain: {domain}, domain: {domain_name}");
                 let domain1 = Domain::new(domain_name.to_string());
                 let domain2 = Domain::new(domain.to_string());
                 domain2.is_subdomain_of(&domain1)

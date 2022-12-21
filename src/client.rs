@@ -8,7 +8,7 @@ use rand::random;
 use std::net::UdpSocket;
 use std::ops::Add;
 
-fn main() {
+pub fn main() {
     // Argumentos de Input para fazer queries
     // Ordem de input de argumentos:
     // 1. Domain_name                               Obrigatorio
@@ -79,7 +79,15 @@ fn main() {
         Some(ip) => ip.to_string(),
         None => "127.0.0.1:0".to_string(),
     };
+    start_client(domain_name.to_string(), query_types, flag, server_ip);
+}
 
+pub fn start_client(
+    domain_name: String,
+    query_types: Vec<QueryType>,
+    flag: u8,
+    server_ip: String,
+) -> DNSMessage {
     println!("DNS Server IP: {}", server_ip);
 
     // Construir a mensagem de DNS a ser enviada e serialize
@@ -96,8 +104,15 @@ fn main() {
         Ok(response) => response,
         Err(err) => panic!("{err}"),
     };
+    println!("{}", dns_recv_message.get_string());
 
-    receive_client(&mut dns_message, dns_recv_message, &socket);
+    match receive_client(&mut dns_message, dns_recv_message, &socket) {
+        Ok(msg) => {
+            println!("{}", msg.get_string());
+            msg
+        }
+        Err(err) => panic!("{err}"),
+    }
     // match dns_recv_message.data.response_values {
     //     Some(response_vec) => {
     //         for (entry_type, entry_vector) in response_vec.iter() {
@@ -116,10 +131,18 @@ fn main() {
     // }
 }
 
-fn receive_client(dns_message: &mut DNSMessage, dns_recv_message: DNSMessage, socket: &UdpSocket) {
+fn receive_client(
+    dns_message: &mut DNSMessage,
+    dns_recv_message: DNSMessage,
+    socket: &UdpSocket,
+) -> Result<DNSMessage, &'static str> {
+    let mut return_message = Ok(DNSMessage::new());
+    println!("DNS MESSAGE:\n{}", dns_recv_message.get_string());
     if let Some(response_code) = dns_recv_message.header.response_code {
         match response_code {
-            0 => println!("{}", dns_recv_message.get_string()),
+            0 => {
+                return_message = Ok(dns_recv_message.clone());
+            }
             1 => match dns_recv_message.data.authorities_values {
                 Some(ref auth_values) => {
                     let new_ip;
@@ -164,7 +187,7 @@ fn receive_client(dns_message: &mut DNSMessage, dns_recv_message: DNSMessage, so
                             Ok(response) => response,
                             Err(_err) => panic!("No response received"),
                         };
-                        receive_client(dns_message, dns_recv_message_new, &socket);
+                        return_message = receive_client(dns_message, dns_recv_message_new, &socket);
                         break;
                     }
                 }
@@ -175,6 +198,7 @@ fn receive_client(dns_message: &mut DNSMessage, dns_recv_message: DNSMessage, so
             _ => println!("Response code invalid"),
         }
     }
+    return_message
 }
 
 fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
