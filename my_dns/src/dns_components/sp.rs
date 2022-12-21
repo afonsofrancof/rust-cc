@@ -1,16 +1,15 @@
-use std::sync::Mutex;
 use std::thread::{self, sleep};
 use std::time::Duration;
 use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::Arc,
 };
 
+use crate::dns_structs::server_config::{ServerConfig, self};
 use crate::dns_structs::{dns_message::DNSEntry, domain_database_struct::DomainDatabase};
 
-pub fn db_sync_listener(db: HashMap<String, DomainDatabase>) {
+pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfig) {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
         Err(err) => panic!("Couldn't bind tcp listener"),
@@ -18,10 +17,17 @@ pub fn db_sync_listener(db: HashMap<String, DomainDatabase>) {
 
     for stream in listener.incoming() {
         // falta fazer o check se o ss que se ta a tentar conecatar e realmente ss do dominio
+       
         // make thread for every ss that asks for connection
         if let Ok(mut stream) = stream {
-            let new_db = db.clone();
-            thread::spawn(move || db_sync_handler(&mut stream, new_db));
+            if let Ok(incoming_addr) = stream.peer_addr() { 
+                if config.get_all_ss().contains(&incoming_addr){
+                    let new_db = db.clone();
+                    thread::spawn(move || db_sync_handler(&mut stream, new_db));
+                } else {
+                    println!("Denied zone transfer for {}", incoming_addr);
+                } 
+            }
         } else {
             println!("Couldn't connect to incoming tcp stream");
         }
