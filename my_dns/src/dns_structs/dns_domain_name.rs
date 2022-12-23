@@ -10,6 +10,9 @@ impl Domain {
         if input.is_empty() || input == "." {
             parts = vec![];
         } else {
+            // Remove any trailing dots from the input string
+            let input = input.trim_end_matches('.');
+
             // Otherwise, split the input string on the `.` character using
             // `split_terminator()` and store the resulting parts in a vector
             // of strings.
@@ -84,6 +87,13 @@ fn test_new_with_dot() {
 fn test_new_with_domain() {
     let domain = Domain::new("example.com".to_string());
     assert_eq!(domain.getparts(), &vec!["example".to_string(), "com".to_string()]);
+}
+
+#[test]
+fn test_trailing_dot_domain(){
+    let domain = Domain::new("example.com".to_string());
+    let domain2 = Domain::new("example.com.".to_string());
+    assert_eq!(domain.to_string(),domain2.to_string());
 }
 
 #[test]
