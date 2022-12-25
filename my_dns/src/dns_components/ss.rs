@@ -3,11 +3,14 @@ use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     string::String,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, 
+    thread,
+    time,
 };
 
 use crate::{
-    dns_parse::domain_database_parse, dns_structs::domain_database_struct::DomainDatabase,
+    dns_parse::domain_database_parse,
+    dns_structs::domain_database_struct::{DomainDatabase, SOA},  
 };
 
 pub fn db_sync(
@@ -15,6 +18,33 @@ pub fn db_sync(
     sp_addr: SocketAddr,
     db: Arc<Mutex<HashMap<String, DomainDatabase>>>,
 ) {
+    // initial sync
+    let mut domain_db: DomainDatabase = zone_transfer(&domain_name, sp_addr, 0);
+    let mut soas: SOA = domain_db.get_soa_records();
+    let mut serial: u32;
+    let mut refresh: u64;
+    let mut retry: u64;
+    let mut expire: u64;
+
+    // antes disto tem de existir uma initial sync para poder existir isto
+    // SOASERIAL?? nao esquecer de checkar onde isso vai
+    loop {
+        serial = soas.get_serial_value();
+        refresh = soas.get_refresh_value(); 
+        thread::sleep(time::Duration::from_secs(refresh));
+        
+        domain_db = zone_transfer(&domain_name, sp_addr, serial);
+        
+         
+        soas = domain_db.get_soa_records();
+        let mut locked_db = db.lock().unwrap();
+        locked_db.insert(domain_name.to_owned(), domain_db.clone());
+        drop(locked_db)
+    }
+
+}
+
+fn zone_transfer(domain_name: &String, sp_addr: SocketAddr, serial: u32) -> DomainDatabase {
     let mut stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
         Err(err) => {
@@ -23,9 +53,17 @@ pub fn db_sync(
     };
 
     stream.write(domain_name.as_bytes()).unwrap();
-
+    
     let mut buf = [0u8; 1000];
+    // vai receber o numero de serie MUDAR ISTO NO SP
+    let mut serial_buf = [0u8; 4];
+    stream.read_exact(&mut serial_buf);
+    let received_serial = u32::from_ne_bytes(serial_buf);
+    if (received_serial == serial) {
+        
+    }
 
+    // recebe as entries que existem 
     stream.read(&mut buf);
 
     let entries: u16 = (buf[0].to_owned() as u16 * 256) + buf[1].to_owned() as u16;
@@ -60,7 +98,5 @@ pub fn db_sync(
         Ok(db) => db,
         Err(err) => panic!("Coudn't parse database"),
     };
-
-    let mut locked_db = db.lock().unwrap();
-    locked_db.insert(domain_name, domain_db);
+    domain_db
 }
