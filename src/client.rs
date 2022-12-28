@@ -17,6 +17,7 @@ use my_dns::dns_structs::dns_message::{
 use rand::random;
 use std::net::UdpSocket;
 use std::ops::Add;
+use colored::Colorize;
 
 pub fn main() {
     // Argumentos do CLI
@@ -53,25 +54,33 @@ pub fn main() {
         ])
         .get_matches();
 
-    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+    
     // Logging
-    let level = log::LevelFilter::Info;
-    let file_path = "log/beans.log";
 
-    // Build a stderr logger.
+    // Caso o modo debug esteja ativo, o log é escrito para o terminal
+    let debug_mode: bool = arguments.get_flag("debug");
+    let level = match debug_mode {
+        true => log::LevelFilter::Info,
+        false => log::LevelFilter::Error,
+    };
+
+    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+
+    let file_path = "logs/client.log";
+
+    // Construir o logger para o stdout.
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(logging_pattern.to_owned()))
         .target(Target::Stdout)
         .build();
 
-    // Logging to log file.
+    // Construir o logger para o ficheiro.
     let logfile = FileAppender::builder()
         .encoder(Box::new(logging_pattern))
         .build(file_path)
         .unwrap();
 
-    // Log Trace level output to file where trace is the default level
-    // and the programmatically specified level to stderr.
+    // Construir o config para o log4rs.
     let config = Config::builder()
         .appender(Appender::builder().build("logfile", Box::new(logfile)))
         .appender(
@@ -87,28 +96,30 @@ pub fn main() {
         )
         .unwrap();
 
-    // Use this to change log levels at runtime.
-    // This means you can change the default log level to trace
-    // if you are trying to debug an issue and need more logs on then turn it off
-    // once you are done.
+    // Inicializar o logger.
     let _handle = log4rs::init_config(config).unwrap();
 
-    error!("error to stdout and file");
-    warn!("to stderr stdout and file");
-    info!("to stderr stdout and file");
-    debug!("debug! to file");
-    trace!("debug! to file");
+    // error!("error to stdout and file");
+    // warn!("warn stdout and file");
+    // info!("info stdout and file");
+    // debug!("debug! to file");
+    // trace!("trace! to file");
 
-    let debug_mode: bool = arguments.get_flag("debug");
 
     let domain_name = match arguments.get_one::<String>("domain") {
         Some(name) => name,
-        None => panic!("No domain provided."),
+        None => {
+            error!("No {} provided.",format!("domain").bold());
+            panic!("Stopping the process.");
+        },
     };
 
     let input_types = match arguments.get_many::<String>("query_types") {
         Some(in_types) => in_types,
-        None => panic!("No query types provided."),
+        None => {
+            error!("No query types provided.");
+            panic!("Stopping the process.");
+        },
     };
 
     // Passar de string para a Enum QueryType
@@ -118,7 +129,8 @@ pub fn main() {
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(_e) => {
-                panic!("Invalid Query Type Input: {}", qtype);
+                error!("Invalid Query Type Input: {}", qtype.red());
+                panic!("Stopping the process.");
             }
         };
     }
