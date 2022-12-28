@@ -1,0 +1,17 @@
+# DNS database file for the finder.official. domain 
+
+@ DEFAULT finder.official.
+TTL DEFAULT 86400
+
+@ SOASP servidor3.finder.official. TTL
+@ SOAADMIN dns\.admin.finder.official. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+finder.official. NS servidor3.finder.official. TTL
+
+servidor3 A 10.2.2.3 TTL
+www CNAME portatil2 TTL
+portatil2 A 10.1.1.2 TTL

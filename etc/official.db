@@ -15,7 +15,9 @@ official. NS servidor2.official. TTL
 
 #SUBDOMAIN NS
 example.official. NS golfinho.example.official. TTL
+example.official. NS servidor3.example.official. TTL
 
 servidor2 A 10.2.2.2 TTL
 golfinho.example A 10.3.3.2 TTL
+servidor3.example A 10.2.2.3 TTL
 
