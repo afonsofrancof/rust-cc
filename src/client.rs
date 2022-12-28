@@ -1,3 +1,4 @@
+#![feature(io_error_more)]
 use clap::*;
 use core::panic;
 use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
@@ -15,9 +16,9 @@ use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
 use rand::random;
-use std::net::UdpSocket;
 use std::ops::Add;
 use colored::Colorize;
+use std::{io, net::UdpSocket, time::Duration};
 
 pub fn main() {
     // Argumentos do CLI
@@ -164,6 +165,8 @@ pub fn start_client(
     let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
 
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+    socket.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
+    socket.set_write_timeout(Some(Duration::new(1, 0))).unwrap();
 
     let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, server_ip.to_owned()) {
         Err(err) => panic!("{err}"),
@@ -172,7 +175,7 @@ pub fn start_client(
 
     let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
         Ok(response) => response,
-        Err(err) => panic!("{err}"),
+        Err(_err) => panic!("Receive Error"),
     };
     println!("{}", dns_recv_message.get_string());
 
@@ -199,7 +202,7 @@ fn receive_client(
             }
             1 => match dns_recv_message.data.authorities_values {
                 Some(ref auth_values) => {
-                    let new_ip;
+                    let mut new_ip;
                     for val in auth_values {
                         if !val.value.chars().all(|c| {
                             vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
@@ -239,7 +242,10 @@ fn receive_client(
                         };
                         let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
                             Ok(response) => response,
-                            Err(_err) => panic!("No response received"),
+                            Err(err) => match err {
+                                IOError => continue,
+                                DeserializeError => panic!("Could not deserialize received message")
+                            }
                         };
                         return_message = receive_client(dns_message, dns_recv_message_new, &socket);
                         break;
