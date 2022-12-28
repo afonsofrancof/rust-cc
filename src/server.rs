@@ -1,12 +1,14 @@
-use std::{
-    collections::HashMap,
-    net::{SocketAddr, UdpSocket},
-    ops::Add,
-    sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
-};
-
 use clap::*;
+use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
+use log4rs::{
+    append::{
+        console::{ConsoleAppender, Target},
+        file::FileAppender,
+    },
+    config::{Appender, Config, Root},
+    encode::pattern::PatternEncoder,
+    filter::threshold::ThresholdFilter,
+};
 use my_dns::{
     dns_components::{
         sp::{self, db_sync_listener},
@@ -22,6 +24,13 @@ use my_dns::{
         domain_database_struct::DomainDatabase,
         server_config::ServerConfig,
     },
+};
+use std::{
+    collections::HashMap,
+    net::{SocketAddr, UdpSocket},
+    ops::Add,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
 };
 pub fn main() {
     // Argumentos de input da CLI para definir quais e quantos servidores inicializar
@@ -42,6 +51,46 @@ pub fn main() {
                 .help("The port the server will listen on"),
         ])
         .get_matches();
+
+    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+    // Logging
+    let level = log::LevelFilter::Info;
+    let file_path = "log/beans.log";
+
+    // Build a stderr logger.
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(logging_pattern.to_owned()))
+        .target(Target::Stdout)
+        .build();
+
+    // Logging to log file.
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(logging_pattern))
+        .build(file_path)
+        .unwrap();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stdout", Box::new(stdout)),
+        )
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stdout")
+                .build(LevelFilter::Trace),
+        )
+        .unwrap();
+
+    // Use this to change log levels at runtime.
+    // This means you can change the default log level to trace
+    // if you are trying to debug an issue and need more logs on then turn it off
+    // once you are done.
+    let _handle = log4rs::init_config(config).unwrap();
 
     //test if path exists
     let config_path = match arguments.get_one::<String>("config_path") {
@@ -76,7 +125,7 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
             println!("Domain {} found in config", domain_name);
             match domain_database_parse::get(db) {
                 Ok(db_parsed) => {
-                    println!("DBPARSED {}",db_parsed.ns_records.len());
+                    println!("DBPARSED {}", db_parsed.ns_records.len());
                     database.insert(domain_name.to_string(), db_parsed);
                     println!("Inserting domain db into database");
                 }
@@ -115,7 +164,7 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
             Err(_) => panic!("Could not receive on socket"),
         };
         let new_db = mutable_db.clone();
-        println!("Received request from {}",src_addr);
+        println!("Received request from {}", src_addr);
         let _handler =
             thread::spawn(move || client_handler(buf.to_vec(), num_of_bytes, src_addr, new_db));
         if once {

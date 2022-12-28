@@ -1,5 +1,15 @@
 use clap::*;
 use core::panic;
+use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
+use log4rs::{
+    append::{
+        console::{ConsoleAppender, Target},
+        file::FileAppender,
+    },
+    config::{Appender, Config, Root},
+    encode::pattern::PatternEncoder,
+    filter::threshold::ThresholdFilter,
+};
 use my_dns::dns_make::{dns_recv, dns_send};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
@@ -9,12 +19,7 @@ use std::net::UdpSocket;
 use std::ops::Add;
 
 pub fn main() {
-    // Argumentos de Input para fazer queries
-    // Ordem de input de argumentos:
-    // 1. Domain_name                               Obrigatorio
-    // 2. Types of values (separados por virgula)   Obrigatorio
-    // 3. Flag Recursiva                            Opcional
-    // 4. Ip do servidor a quem enviar pedido       Opcional
+    // Argumentos do CLI
     let arguments = Command::new("client")
         .author("Grupo 11")
         .version("1.0.0")
@@ -40,8 +45,61 @@ pub fn main() {
                 .short('s')
                 .long("server")
                 .help("Server IP Address"),
+            Arg::new("debug")
+                .action(ArgAction::SetTrue)
+                .short('b')
+                .long("debug")
+                .help("Debug Mode"),
         ])
         .get_matches();
+
+    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+    // Logging
+    let level = log::LevelFilter::Info;
+    let file_path = "log/beans.log";
+
+    // Build a stderr logger.
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(logging_pattern.to_owned()))
+        .target(Target::Stdout)
+        .build();
+
+    // Logging to log file.
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(logging_pattern))
+        .build(file_path)
+        .unwrap();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stdout", Box::new(stdout)),
+        )
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stdout")
+                .build(LevelFilter::Trace),
+        )
+        .unwrap();
+
+    // Use this to change log levels at runtime.
+    // This means you can change the default log level to trace
+    // if you are trying to debug an issue and need more logs on then turn it off
+    // once you are done.
+    let _handle = log4rs::init_config(config).unwrap();
+
+    error!("error to stdout and file");
+    warn!("to stderr stdout and file");
+    info!("to stderr stdout and file");
+    debug!("debug! to file");
+    trace!("debug! to file");
+
+    let debug_mode: bool = arguments.get_flag("debug");
 
     let domain_name = match arguments.get_one::<String>("domain") {
         Some(name) => name,
@@ -49,7 +107,7 @@ pub fn main() {
     };
 
     let input_types = match arguments.get_many::<String>("query_types") {
-        Some(name) => name,
+        Some(in_types) => in_types,
         None => panic!("No query types provided."),
     };
 
@@ -88,7 +146,7 @@ pub fn start_client(
     flag: u8,
     server_ip: String,
 ) -> DNSMessage {
-    println!("DNS Server IP: {}", server_ip);
+    info!("DNS Server IP: {}", server_ip);
 
     // Construir a mensagem de DNS a ser enviada e serialize
     let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
@@ -113,22 +171,6 @@ pub fn start_client(
         }
         Err(err) => panic!("{err}"),
     }
-    // match dns_recv_message.data.response_values {
-    //     Some(response_vec) => {
-    //         for (entry_type, entry_vector) in response_vec.iter() {
-    //             println!("{} Responses:", entry_type.to_string());
-    //             for entry in entry_vector {
-    //                 println!(
-    //                     "{} {} {} {}",
-    //                     entry.name, entry.type_of_value, entry.value, entry.ttl
-    //                 );
-    //             }
-    //             println!("\n---------");
-    //         }
-    //     }
-    //     None => { println!("No response values received");//NEED TO CHECK NS
-    //     }
-    // }
 }
 
 fn receive_client(
