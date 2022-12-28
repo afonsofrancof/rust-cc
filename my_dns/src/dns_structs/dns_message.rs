@@ -216,6 +216,11 @@ impl DNSEntry {
             priority: None
         }
     }
+    
+    
+    pub fn get_value(&self) -> String {
+        self.value.to_owned()
+    }
 
     // falta a priority
     pub fn get_string(&self) -> String {

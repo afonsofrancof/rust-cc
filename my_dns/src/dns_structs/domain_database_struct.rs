@@ -1,5 +1,5 @@
-use super::dns_message::{DNSEntry, QueryType};
 use super::dns_domain_name::Domain;
+use super::dns_message::{DNSEntry, QueryType};
 use crate::dns_parse::domain_database_parse;
 use std::{collections::HashMap, ops::Add};
 
@@ -15,12 +15,12 @@ pub struct DomainDatabase {
 
 #[derive(Clone)]
 pub struct SOA {
-   pub primary_ns: DNSEntry,    // the primary name server for the domain
-   pub contact_email: DNSEntry, // the email address of the domain administrator
-   pub serial: DNSEntry,        // the serial number of the SOA record
-   pub refresh: DNSEntry,       // the time, in seconds, between refreshes of the zone
-   pub retry: DNSEntry,         // the time, in seconds, between retries if the refresh fails
-   pub expire: DNSEntry,        // the time, in seconds, after which the zone is considered expired
+    pub primary_ns: DNSEntry,    // the primary name server for the domain
+    pub contact_email: DNSEntry, // the email address of the domain administrator
+    pub serial: DNSEntry,        // the serial number of the SOA record
+    pub refresh: DNSEntry,       // the time, in seconds, between refreshes of the zone
+    pub retry: DNSEntry,         // the time, in seconds, between retries if the refresh fails
+    pub expire: DNSEntry,        // the time, in seconds, after which the zone is considered expired
 }
 
 impl DomainDatabase {
@@ -138,4 +138,57 @@ impl SOA {
             expire: DNSEntry::new(),
         }
     }
+
+    pub fn get_primary_ns(&self) -> DNSEntry {
+        self.primary_ns.to_owned()
+    }
+
+    pub fn get_contact_email(&self) -> DNSEntry {
+        self.contact_email.to_owned()
+    }
+
+    pub fn get_serial(&self) -> DNSEntry {
+        self.serial.to_owned()
+    }
+
+    pub fn get_refresh(&self) -> DNSEntry {
+        self.refresh.to_owned()
+    }
+
+    pub fn get_retry(&self) -> DNSEntry {
+        self.retry.to_owned()
+    }
+
+    pub fn get_expire(&self) -> DNSEntry {
+        self.expire.to_owned()
+    }
+
+    pub fn get_serial_value(&self) -> u32 {
+        match self.serial.get_value().parse::<u32>() {
+            Ok(serial) => serial,
+            Err(_) => 0
+        }
+    }
+
+    pub fn get_refresh_value(&self) -> u64 {
+        match self.refresh.get_value().parse::<u64>() {
+            Ok(refresh) => refresh,
+            Err(_) => 0
+        }
+    }
+
+    pub fn get_retry_value(&self) -> u64 {
+        match self.retry.get_value().parse::<u64>() {
+            Ok(retry) => retry,
+            Err(_) => 0
+        }
+    }
+
+    pub fn get_expire_value(&self) -> u64 {
+        match self.expire.get_value().parse::<u64>() {
+            Ok(expire) => expire,
+            Err(_) => 0
+        }
+    }
+
 }

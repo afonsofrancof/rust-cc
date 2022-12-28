@@ -1,3 +1,4 @@
+use std::net::{Ipv4Addr, IpAddr};
 use std::thread::{self, sleep};
 use std::time::Duration;
 use std::{
@@ -6,7 +7,7 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::dns_structs::server_config::{ServerConfig, self};
+use crate::dns_structs::server_config::{self, ServerConfig};
 use crate::dns_structs::{dns_message::DNSEntry, domain_database_struct::DomainDatabase};
 
 pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfig) {
@@ -17,16 +18,16 @@ pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfi
 
     for stream in listener.incoming() {
         // falta fazer o check se o ss que se ta a tentar conecatar e realmente ss do dominio
-       
+
         // make thread for every ss that asks for connection
         if let Ok(mut stream) = stream {
-            if let Ok(incoming_addr) = stream.peer_addr() { 
-                if config.get_all_ss().contains(&incoming_addr){
+            if let Ok(incoming_addr) = stream.peer_addr() {
+                if config.get_all_ss().iter().map(|s| s.ip()).collect::<Vec<IpAddr>>().contains(&incoming_addr.ip()) {
                     let new_db = db.clone();
                     thread::spawn(move || db_sync_handler(&mut stream, new_db));
                 } else {
                     println!("Denied zone transfer for {}", incoming_addr);
-                } 
+                }
             }
         } else {
             println!("Couldn't connect to incoming tcp stream");
@@ -51,9 +52,20 @@ fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) 
         None => panic!("Database not found for {}", domain_name.to_owned()),
     };
 
+    // enviar SERIAL
+    let soas = domain_db.get_soa_records();
+    let serial: u32 = soas.get_serial_value();
+    let serial_buf = serial.to_ne_bytes();
+    stream.write(&serial_buf);
+    // receber byte de confirmacao 0 para nao enviar, 1 caso contrario
+    let mut confirm_byte = [0u8; 1];
+    stream.read_exact(&mut confirm_byte);
+    if confirm_byte[0] == 0u8 {
+        return;
+    }
+
     let mut entries_to_send: Vec<DNSEntry> = Vec::new();
     // get all SOA
-    let soas = domain_db.get_soa_records();
 
     entries_to_send.push(soas.primary_ns);
     entries_to_send.push(soas.contact_email);
@@ -103,7 +115,7 @@ fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) 
     let mut entry_num_bin = [0u8, 2];
     entry_num_bin[0] = (entry_num >> 8) as u8;
     entry_num_bin[1] = entry_num as u8;
-    stream.write(&mut entry_num_bin);
+    stream.write(&entry_num_bin);
 
     stream.read(&mut entry_num_bin).unwrap();
 
