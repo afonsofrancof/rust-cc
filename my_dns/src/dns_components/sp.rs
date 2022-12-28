@@ -1,3 +1,4 @@
+use std::net::{Ipv4Addr, IpAddr};
 use std::thread::{self, sleep};
 use std::time::Duration;
 use std::{
@@ -21,7 +22,7 @@ pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfi
         // make thread for every ss that asks for connection
         if let Ok(mut stream) = stream {
             if let Ok(incoming_addr) = stream.peer_addr() {
-                if config.get_all_ss().contains(&incoming_addr) {
+                if config.get_all_ss().iter().map(|s| s.ip()).collect::<Vec<IpAddr>>().contains(&incoming_addr.ip()) {
                     let new_db = db.clone();
                     thread::spawn(move || db_sync_handler(&mut stream, new_db));
                 } else {
