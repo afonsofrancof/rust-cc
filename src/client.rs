@@ -56,6 +56,8 @@ pub fn main() {
         ])
         .get_matches();
 
+
+
     // Remover o ficheiro de log anterior, caso exista
     let _rm = fs::remove_file("logs/client.log");
 
@@ -294,7 +296,7 @@ fn receive_client(
                                 }
                             },
                         };
-                        // Recomecar o processo de receber a resposta
+                        // Recomecar o processo de verificar a resposta
                         return_message = receive_client(dns_message, dns_recv_message_new, &socket);
                         break;
                     }
