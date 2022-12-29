@@ -6,7 +6,7 @@ use std::{collections::HashMap, ops::Add};
 #[derive(Clone)]
 pub struct DomainDatabase {
     pub soa_entries: SOA,
-    pub ns_records: HashMap<String, Vec<DNSEntry>>,
+    pub ns_records: HashMap<Domain, Vec<DNSEntry>>,
     pub a_records: Option<Vec<DNSEntry>>,
     pub cname_records: Option<Vec<DNSEntry>>,
     pub mx_records: Option<Vec<DNSEntry>>,
@@ -39,22 +39,21 @@ impl DomainDatabase {
         self.soa_entries.to_owned()
     }
 
-    pub fn get_ns_of(&self, domain: String) -> Option<(String, Vec<DNSEntry>)> {
+    pub fn get_ns_of(&self, domain: Domain) -> Option<(Domain, Vec<DNSEntry>)> {
         let biggest_match = self
             .ns_records
             .iter()
             .clone()
             .filter(|(domain_name, _domain_ns_vec)| {
                 let domain1 = Domain::new(domain_name.to_string());
-                let domain2 = Domain::new(domain.to_string());
-                domain2.is_subdomain_of(&domain1)
+                domain.is_subdomain_of(&domain1)
             })
-            .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| dn1.len().cmp(&dn2.len()))
+            .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| dn1.to_string().len().cmp(&dn2.to_string().len()))
             .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned()));
         biggest_match
     }
 
-    pub fn get_ns_records(&self) -> HashMap<String, Vec<DNSEntry>> {
+    pub fn get_ns_records(&self) -> HashMap<Domain, Vec<DNSEntry>> {
         self.ns_records.to_owned()
     }
 
@@ -74,7 +73,7 @@ impl DomainDatabase {
         self.ptr_records.to_owned()
     }
 
-    pub fn add_ns_record(&mut self, domain_name: String, entry: DNSEntry) {
+    pub fn add_ns_record(&mut self, domain_name: Domain, entry: DNSEntry) {
         match self.ns_records.get_mut(&domain_name) {
             Some(records) => {
                 records.push(entry);

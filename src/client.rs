@@ -1,6 +1,5 @@
 #![feature(io_error_more)]
 use clap::*;
-use colored::Colorize;
 use core::panic;
 use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
 use log4rs::{
@@ -12,7 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::dns_make::{dns_recv, dns_send};
+use my_dns::{dns_make::{dns_recv, dns_send}, dns_structs::dns_domain_name::Domain};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
@@ -146,17 +145,20 @@ pub fn main() {
         None => "127.0.0.1:0".to_string(),
     };
 
-    start_client(domain_name.to_string(), query_types, flag, server_ip);
+    start_client(Domain::new(domain_name.to_string()), query_types, flag, server_ip);
+
+
 }
 
 pub fn start_client(
-    domain_name: String,
+    domain_name: Domain,
     query_types: Vec<QueryType>,
     flag: u8,
     server_ip: String,
 ) -> DNSMessage {
+
     // Construir a mensagem de DNS a ser enviada e dar serialize
-    let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
+    let mut dns_message = query_builder(domain_name, query_types, flag);
     info!("EV @ dns-msg-created");
 
     // Inicializar a socket UDP
@@ -245,7 +247,7 @@ fn receive_client(
                                     // Procurar na lista de valores extra o IP do servidor de autoridade
                                     Some(ref extra_values) => {
                                         match extra_values.iter().clone().find(|extra| {
-                                            extra.name.to_owned() == val.value.to_owned()
+                                            extra.domain_name == Domain::new(val.value.to_string())
                                         }) {
                                             Some(ns) => ns.value.to_owned(),
                                             None => continue,
@@ -265,8 +267,8 @@ fn receive_client(
                             2 => new_ip,
                             // Nao foi encontrado um IP valido
                             _ => {
-                                error!("SP 127.0.0.1 received-malformed-ip: {}", val.name);
-                                panic!("Malformed IP on {}", val.name);
+                                error!("SP 127.0.0.1 received-malformed-ip: {}", val.domain_name.to_string());
+                                panic!("Malformed IP on {}", val.domain_name.to_string());
                             }
                         };
                         
@@ -311,7 +313,7 @@ fn receive_client(
     return_message
 }
 
-fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
+fn query_builder(domain_name: Domain, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
     let dns_query_info = DNSQueryInfo {
         name: domain_name,
         type_of_value: query_types,

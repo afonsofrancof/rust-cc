@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
+use super::dns_domain_name::Domain;
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessage {
     pub header: DNSMessageHeaders,
@@ -27,13 +29,13 @@ pub struct DNSMessageData {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DNSQueryInfo {
-    pub name: String,
+    pub name: Domain,
     pub type_of_value: Vec<QueryType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DNSEntry {
-    pub name: String,
+    pub domain_name: Domain,
     pub type_of_value: String,
     pub value: String,
     pub ttl: u32,
@@ -197,21 +199,21 @@ impl DNSMessageData {
 impl DNSQueryInfo {
     pub fn new() -> Self {
         DNSQueryInfo {
-            name: "".to_string(),
+            name: Domain::new_empty(),
             type_of_value: vec![],
         }
     }
 
     pub fn get_string(&self) -> String {
         let tov: String = self.type_of_value.iter().map(|x| x.get_string()).collect();
-        format!("{},{};",self.name, tov)
+        format!("{},{}",self.name.to_string(), tov)
     }
 }
 
 impl DNSEntry {
     pub fn new() -> Self {
         DNSEntry {
-            name: String::new(), 
+            domain_name: Domain::new_empty(), 
             type_of_value: String::new(), 
             value: String::new(), 
             ttl: 0,
@@ -227,9 +229,9 @@ impl DNSEntry {
     // falta a priority
     pub fn get_string(&self) -> String {
         if let Some(priority) = self.priority {
-            format!("{} {} {} {} {}",self.name,self.type_of_value,self.value,self.ttl, priority)
+            format!("{} {} {} {} {}",self.domain_name.to_string(),self.type_of_value,self.value,self.ttl, priority)
         } else{
-            format!("{} {} {} {}",self.name,self.type_of_value,self.value,self.ttl)
+            format!("{} {} {} {}",self.domain_name.to_string(),self.type_of_value,self.value,self.ttl)
         }
     }
 }
