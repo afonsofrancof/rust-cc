@@ -86,7 +86,6 @@ impl DNSMessageHeaders {
     // R+A => 0 1 1 = 3
     // Q+R => 1 1 0 = 6
     pub fn decode_flags(&self) -> Result<&str,&'static str> {
-        println!("FLAG => {}",self.flags);
         match self.flags {
             1 => Ok("A"),
             2 => Ok("R"),
@@ -157,6 +156,7 @@ impl DNSMessageData {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
+                sb.insert(sb.len() -2, ';'); 
                 sb
             },
             None => String::new()
@@ -171,6 +171,7 @@ impl DNSMessageData {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
+                sb.insert(sb.len() -2, ';'); 
                 sb
             },
             None => String::new()
@@ -185,6 +186,7 @@ impl DNSMessageData {
                     entry.push_str(",\n");
                     sb.push_str(entry.as_str());
                 }
+                sb.insert(sb.len() -2, ';'); 
                 sb
             },
             None => String::new()
@@ -204,7 +206,11 @@ impl DNSQueryInfo {
 
     pub fn get_string(&self) -> String {
         let tov: String = self.type_of_value.iter().map(|x| x.get_string()).collect();
+<<<<<<< HEAD
         format!("{}, {}",self.name.to_string(), tov)
+=======
+        format!("{},{};",self.name, tov)
+>>>>>>> c1ccd9b972e0e8fe9060dda7eaf5fdf48e19198f
     }
 }
 
