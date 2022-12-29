@@ -14,7 +14,7 @@ use my_dns::{
         sp::{self, db_sync_listener},
         ss::db_sync,
     },
-    dns_structs::{dns_message, dns_domain_name::Domain},
+    dns_structs::dns_message,
 };
 use my_dns::{
     dns_make::dns_send,
@@ -115,16 +115,19 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
         Err(_err) => panic!("Server config path not found!"),
     };
 
-    let mut database: HashMap<Domain, DomainDatabase> = HashMap::new();
+    let mut database: HashMap<String, DomainDatabase> = HashMap::new();
 
     let domain_configs = config.get_domain_configs();
 
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
+            println!("Domain {} found in config", domain_name);
             match domain_database_parse::get(db) {
                 Ok(db_parsed) => {
-                    database.insert(Domain::new(domain_name.to_string()), db_parsed);
+                    println!("DBPARSED {}", db_parsed.ns_records.len());
+                    database.insert(domain_name.to_string(), db_parsed);
+                    println!("Inserting domain db into database");
                 }
                 Err(err) => panic!("{err}"),
             };
@@ -137,14 +140,14 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
     thread::spawn(move || db_sync_listener(db_clone, config_clone));
 
     let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
-    let mutable_db: Arc<Mutex<HashMap<Domain, DomainDatabase>>> = Arc::new(Mutex::new(database));
+    let mutable_db: Arc<Mutex<HashMap<String, DomainDatabase>>> = Arc::new(Mutex::new(database));
 
     //Add SS to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(sp_addr) = domain_config.get_domain_sp() {
-            let dn = Domain::new(domain_name.to_string());
+            let dn_copy = domain_name.to_string();
             let mutable_db_copy = Arc::clone(&mutable_db);
-            let handler = thread::spawn(move || db_sync(dn, sp_addr, mutable_db_copy));
+            let handler = thread::spawn(move || db_sync(dn_copy, sp_addr, mutable_db_copy));
             handle_vec.push(handler);
         }
     }
@@ -174,52 +177,59 @@ fn client_handler(
     buf: Vec<u8>,
     num_of_bytes: usize,
     src_addr: SocketAddr,
-    database_mutex: Arc<Mutex<HashMap<Domain, DomainDatabase>>>,
+    database_mutex: Arc<Mutex<HashMap<String, DomainDatabase>>>,
 ) {
     let mut dns_message: DNSMessage = match bincode::deserialize(&buf) {
         Ok(message) => message,
         Err(_) => panic!("Could not deserialize message"),
     };
-    let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
+    let mut queried_domain: String = dns_message.data.query_info.name.to_owned();
+    if !queried_domain.ends_with(".") {
+        queried_domain = queried_domain.add(".");
+    };
 
-    let database_map = database_mutex.lock().unwrap();
-    //Go to our database_map and get the domain specific database
-    let (domain_name, domain_name_db) = match database_map
+    let database = database_mutex.lock().unwrap();
+
+    let (domain_name, db) = match database
         .iter()
         .clone()
-        .filter(|(dn, _domain_db)| {
-            queried_domain.is_subdomain_of(dn.to_owned())
+        .filter(|(domain_name, _domain_db)| {
+            let dn = match domain_name.as_str() {
+                "." => ".".to_string(),
+                _ => ".".to_string().add(domain_name),
+            };
+            ".".to_string().add(&queried_domain).ends_with(&dn)
         })
         .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
-            domain_name1.to_string().cmp(&domain_name2.to_string())
+            domain_name1.cmp(domain_name2)
         }) {
         Some((domain_name, domain_database)) => (domain_name, domain_database),
         None => panic!(
             "My domains can't answer this (need to add feature of resolver if no DD field exists )"
         ),
     };
-    //Get NS (or the closest) of the queried domain 
-    if let Some((domain_name_authority, authority_ns_list)) = domain_name_db.get_ns_of(queried_domain.to_owned()) {
-        //Check if we are that NS
-        if domain_name_authority == domain_name.to_owned() {
+
+    if let Some((sub_domain_name, subdomain_ns_list)) = db.get_ns_of(queried_domain.to_owned()) {
+        println!("SubDomain:{} ,Domain:{}", sub_domain_name, domain_name);
+        if sub_domain_name == domain_name.to_owned() {
             let query_types = dns_message.data.query_info.type_of_value.clone();
 
             let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
 
             for query_type in query_types.into_iter() {
                 let response = match query_type {
-                    QueryType::A => match domain_name_db.get_a_records() {
+                    QueryType::A => match db.get_a_records() {
                         Some(records) => Some(
                             records
                                 .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
+                                .filter(|entry| entry.name == queried_domain)
                                 .map(|entry| entry.to_owned())
                                 .collect::<Vec<DNSEntry>>(),
                         ),
                         None => None,
                     },
                     QueryType::NS => {
-                        let records = domain_name_db.get_ns_records();
+                        let records = db.get_ns_records();
                         Some(
                             records
                                 .values()
@@ -229,31 +239,31 @@ fn client_handler(
                                 .collect(),
                         )
                     }
-                    QueryType::MX => match domain_name_db.get_mx_records() {
+                    QueryType::MX => match db.get_mx_records() {
                         Some(records) => Some(
                             records
                                 .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
+                                .filter(|entry| entry.name == queried_domain)
                                 .map(|entry| entry.to_owned())
                                 .collect::<Vec<DNSEntry>>(),
                         ),
                         None => None,
                     },
-                    QueryType::CNAME => match domain_name_db.get_cname_records() {
+                    QueryType::CNAME => match db.get_cname_records() {
                         Some(records) => Some(
                             records
                                 .into_iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
+                                .filter(|entry| entry.name == queried_domain)
                                 .map(|entry| entry.to_owned())
                                 .collect::<Vec<DNSEntry>>(),
                         ),
                         None => None,
                     },
-                    QueryType::PTR => match domain_name_db.get_ptr_records() {
+                    QueryType::PTR => match db.get_ptr_records() {
                         Some(records) => Some(
                             records
                                 .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
+                                .filter(|entry| entry.name == queried_domain)
                                 .map(|entry| entry.to_owned())
                                 .collect::<Vec<DNSEntry>>(),
                         ),
@@ -301,7 +311,7 @@ fn client_handler(
             dns_message.header.response_code = Some(1);
         }
         let mut authorities_values = Vec::new();
-        for entry in authority_ns_list.iter().map(|entry| entry.to_owned()) {
+        for entry in subdomain_ns_list.iter().map(|entry| entry.to_owned()) {
             authorities_values.push(entry)
         }
         dns_message.data.authorities_values = Some(authorities_values.to_owned());
@@ -311,7 +321,7 @@ fn client_handler(
         };
 
         let mut extra_values = Vec::new();
-        let a_records = match domain_name_db.get_a_records() {
+        let a_records = match db.get_a_records() {
             Some(records) => records,
             None => panic!("No A records found, cannot get IP of an NS entry"),
         };
@@ -331,14 +341,14 @@ fn client_handler(
 
         for entry in non_extra_values {
             let a_record: DNSEntry;
-            if let Some(record) = a_records.iter().find(|a_entry| a_entry.domain_name == Domain::new(entry.value.to_string())) {
+            if let Some(record) = a_records.iter().find(|a_entry| a_entry.name == entry.value) {
                 a_record = record.to_owned();
                 extra_values.push(DNSEntry {
-                    domain_name: a_record.domain_name,
+                    name: a_record.name,
                     type_of_value: a_record.type_of_value,
                     value: a_record.value,
                     ttl: a_record.ttl,
-                    priority: a_record.priority,
+                    priority: None,
                 })
             } else {
                 println!("No translate found. need to fix this part of the code");

@@ -11,7 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::{dns_make::{dns_recv, dns_send}, dns_structs::dns_domain_name::Domain};
+use my_dns::dns_make::{dns_recv, dns_send};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
@@ -55,13 +55,6 @@ pub fn main() {
         ])
         .get_matches();
 
-<<<<<<< HEAD
-    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
-    // Logging
-    let level = log::LevelFilter::Info;
-    let file_path = "log/beans.log";
-    // Build a stderr logger.
-=======
     // Remover o ficheiro de log anterior, caso exista
     let _rm = fs::remove_file("logs/client.log");
 
@@ -86,7 +79,6 @@ pub fn main() {
     let file_path = "logs/client.log";
 
     // Construir o logger para o stdout.
->>>>>>> c1ccd9b972e0e8fe9060dda7eaf5fdf48e19198f
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(logging_pattern.to_owned()))
         .target(Target::Stdout)
@@ -150,30 +142,23 @@ pub fn main() {
         Some(ip) => ip.to_string(),
         None => "127.0.0.1:0".to_string(),
     };
-<<<<<<< HEAD
-    start_client(Domain::new(domain_name.to_string()), query_types, flag, server_ip);
-=======
-
-    start_client(domain_name.to_string(), query_types, flag, server_ip);
->>>>>>> c1ccd9b972e0e8fe9060dda7eaf5fdf48e19198f
+    start_client(
+        Domain::new(domain_name.to_string()),
+        query_types,
+        flag,
+        server_ip,
+    );
 }
 
 pub fn start_client(
-    domain_name: Domain,
+    domain_name: String,
     query_types: Vec<QueryType>,
     flag: u8,
     server_ip: String,
 ) -> DNSMessage {
-<<<<<<< HEAD
-    info!("DNS Server IP: {}", server_ip);
-
     // Construir a mensagem de DNS a ser enviada e serialize
-    let mut dns_message = query_builder(domain_name, query_types, flag);
-=======
-    // Construir a mensagem de DNS a ser enviada e dar serialize
     let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
     info!("EV @ dns-msg-created");
->>>>>>> c1ccd9b972e0e8fe9060dda7eaf5fdf48e19198f
 
     // Inicializar a socket UDP
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -261,7 +246,7 @@ fn receive_client(
                                     // Procurar na lista de valores extra o IP do servidor de autoridade
                                     Some(ref extra_values) => {
                                         match extra_values.iter().clone().find(|extra| {
-                                            extra.domain_name == Domain::new(val.value.to_string())
+                                            extra.name.to_owned() == val.value.to_owned()
                                         }) {
                                             Some(ns) => ns.value.to_owned(),
                                             None => continue,
@@ -279,8 +264,10 @@ fn receive_client(
                             1 => addr_vec[0].to_string().add(":").add("5353"),
                             // Formar novo IP com o IP obtido dos extra values e a porta recebida
                             2 => new_ip,
-<<<<<<< HEAD
-                            _ => panic!("Malformed IP on {}", val.domain_name.to_string()),
+                            _ => {
+                                error!("SP 127.0.0.1 received-malformed-ip: {}", val.name);
+                                panic!("Malformed IP on {}", val.name);
+                            }
                         };
                         println!(
                             "Received non final query, sending to {}",
@@ -298,18 +285,18 @@ fn receive_client(
                             Ok(response) => response,
                             Err(err) => match err {
                                 IOError => continue,
-                                DeserializeError => panic!("Could not deserialize received message")
-=======
-                            // Nao foi encontrado um IP valido
-                            _ => {
-                                error!("SP 127.0.0.1 received-malformed-ip: {}", val.name);
-                                panic!("Malformed IP on {}", val.name);
->>>>>>> c1ccd9b972e0e8fe9060dda7eaf5fdf48e19198f
-                            }
+                                DeserializeError => {
+                                    panic!("Could not deserialize received message")
+                                }
+                            },
                         };
-                        
-                        // Enviar a query para o novo IP 
-                        let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, new_ip_address.to_owned(),) {
+
+                        // Enviar a query para o novo IP
+                        let _size_sent = match dns_send::send(
+                            dns_message.to_owned(),
+                            &socket,
+                            new_ip_address.to_owned(),
+                        ) {
                             Ok(size_sent) => {
                                 info!("QE {} sent-new-query", new_ip_address.to_owned());
                                 size_sent
@@ -319,11 +306,15 @@ fn receive_client(
                                 panic!("{err}");
                             }
                         };
-                        
+
                         // Receber a resposta
                         let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
                             Ok(response) => {
-                                info!("RR {} dns-msg-received: {}",new_ip_address.to_owned(),response.0.get_string());
+                                info!(
+                                    "RR {} dns-msg-received: {}",
+                                    new_ip_address.to_owned(),
+                                    response.0.get_string()
+                                );
                                 response
                             }
                             Err(err) => match err {
