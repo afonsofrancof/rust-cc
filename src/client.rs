@@ -11,7 +11,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::dns_make::{dns_recv, dns_send};
+use my_dns::{dns_make::{dns_recv, dns_send}, dns_structs::dns_domain_name::Domain};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
@@ -58,7 +58,6 @@ pub fn main() {
     // Logging
     let level = log::LevelFilter::Info;
     let file_path = "log/beans.log";
-
     // Build a stderr logger.
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(logging_pattern.to_owned()))
@@ -138,11 +137,11 @@ pub fn main() {
         Some(ip) => ip.to_string(),
         None => "127.0.0.1:0".to_string(),
     };
-    start_client(domain_name.to_string(), query_types, flag, server_ip);
+    start_client(Domain::new(domain_name.to_string()), query_types, flag, server_ip);
 }
 
 pub fn start_client(
-    domain_name: String,
+    domain_name: Domain,
     query_types: Vec<QueryType>,
     flag: u8,
     server_ip: String,
@@ -150,7 +149,7 @@ pub fn start_client(
     info!("DNS Server IP: {}", server_ip);
 
     // Construir a mensagem de DNS a ser enviada e serialize
-    let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
+    let mut dns_message = query_builder(domain_name, query_types, flag);
 
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
@@ -199,7 +198,7 @@ fn receive_client(
                                 match dns_recv_message.data.extra_values {
                                     Some(ref extra_values) => {
                                         match extra_values.iter().clone().find(|extra| {
-                                            extra.name.to_owned() == val.value.to_owned()
+                                            extra.domain_name == Domain::new(val.value.to_string())
                                         }) {
                                             Some(ns) => ns.value.to_owned(),
                                             None => continue,
@@ -214,7 +213,7 @@ fn receive_client(
                         let addr_string_parsed = match addr_vec.len() {
                             1 => addr_vec[0].to_string().add(":").add("5353"),
                             2 => new_ip,
-                            _ => panic!("Malformed IP on {}", val.name),
+                            _ => panic!("Malformed IP on {}", val.domain_name.to_string()),
                         };
                         println!(
                             "Received non final query, sending to {}",
@@ -249,7 +248,7 @@ fn receive_client(
     return_message
 }
 
-fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
+fn query_builder(domain_name: Domain, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
     let dns_query_info = DNSQueryInfo {
         name: domain_name,
         type_of_value: query_types,
