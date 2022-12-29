@@ -16,8 +16,9 @@ use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
 use rand::random;
-use std::ops::Add;
+use std::{ops::Add, thread};
 use colored::Colorize;
+use std::fs;
 use std::{io, net::UdpSocket, time::Duration};
 
 pub fn main() {
@@ -55,17 +56,26 @@ pub fn main() {
         ])
         .get_matches();
 
-    
-    // Logging
+    // Remover o ficheiro de log anterior, caso exista
+    let _rm = fs::remove_file("logs/client.log");
 
+    // Logging
     // Caso o modo debug esteja ativo, o log é escrito para o terminal
     let debug_mode: bool = arguments.get_flag("debug");
-    let level = match debug_mode {
-        true => log::LevelFilter::Info,
-        false => log::LevelFilter::Error,
+    let level_filter;
+    let level;
+    match debug_mode {
+        true => {
+            level=log::LevelFilter::Debug;
+            level_filter = "debug"; 
+        },
+        false => {
+            level=log::LevelFilter::Error;
+            level_filter = "shy"; 
+        },
     };
 
-    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {m}{n}");
 
     let file_path = "logs/client.log";
 
@@ -99,29 +109,12 @@ pub fn main() {
 
     // Inicializar o logger.
     let _handle = log4rs::init_config(config).unwrap();
+    info!("ST 127.0.0.1 53 TTL {level_filter}");
+    info!("EV @ log-file-create /logs/client.log");
 
-    // error!("error to stdout and file");
-    // warn!("warn stdout and file");
-    // info!("info stdout and file");
-    // debug!("debug! to file");
-    // trace!("trace! to file");
+    let domain_name = arguments.get_one::<String>("domain").unwrap();
 
-
-    let domain_name = match arguments.get_one::<String>("domain") {
-        Some(name) => name,
-        None => {
-            error!("No {} provided.",format!("domain").bold());
-            panic!("Stopping the process.");
-        },
-    };
-
-    let input_types = match arguments.get_many::<String>("query_types") {
-        Some(in_types) => in_types,
-        None => {
-            error!("No query types provided.");
-            panic!("Stopping the process.");
-        },
-    };
+    let input_types = arguments.get_many::<String>("query_types").unwrap();
 
     // Passar de string para a Enum QueryType
     // resultando em erro, e cancelada a execucao
@@ -130,8 +123,8 @@ pub fn main() {
         match QueryType::from_string(qtype.to_string()) {
             Ok(q) => query_types.push(q),
             Err(_e) => {
-                error!("Invalid Query Type Input: {}", qtype.red());
-                panic!("Stopping the process.");
+                error!("SP 127.0.0.1 invalid-user-input {qtype}");
+                return;
             }
         };
     }
@@ -150,6 +143,7 @@ pub fn main() {
         Some(ip) => ip.to_string(),
         None => "127.0.0.1:0".to_string(),
     };
+
     start_client(domain_name.to_string(), query_types, flag, server_ip);
 }
 
@@ -159,32 +153,52 @@ pub fn start_client(
     flag: u8,
     server_ip: String,
 ) -> DNSMessage {
-    info!("DNS Server IP: {}", server_ip);
 
-    // Construir a mensagem de DNS a ser enviada e serialize
+    // Construir a mensagem de DNS a ser enviada e dar serialize
     let mut dns_message = query_builder(domain_name.to_string(), query_types, flag);
+    info!("EV @ dns-msg-created");
 
+    // Inicializar a socket UDP
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
     socket.set_write_timeout(Some(Duration::new(1, 0))).unwrap();
 
     let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, server_ip.to_owned()) {
-        Err(err) => panic!("{err}"),
-        Ok(size_sent) => size_sent,
+        Ok(size_sent) => {
+            info!("QE {} dns-msg-sent: {}", server_ip.to_owned(), dns_message.to_owned().get_string());
+            size_sent
+        },
+        Err(err) => {
+            error!("TO {} invalid-socket-address", server_ip.to_owned());
+            panic!("{err}");
+        },
     };
 
     let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
         Ok(response) => response,
-        Err(_err) => panic!("Receive Error"),
+        Err(err) => match err {
+            IOError => {
+                error!("TO {} invalid-socket-address", server_ip.to_owned()); 
+                panic!("Receiving Query Answer");
+            },
+            DeserializeError =>{
+                error!("ER {} could-not-decode", server_ip.to_owned()); 
+                panic!("Receiving Query Answer");
+            },
+        }
     };
-    println!("{}", dns_recv_message.get_string());
+    info!("RR {} dns-msg-received: {}", server_ip.to_owned(), dns_recv_message.get_string());
 
     match receive_client(&mut dns_message, dns_recv_message, &socket) {
         Ok(msg) => {
-            println!("{}", msg.get_string());
+            info!("RR {} dns-msg-received: {}", server_ip.to_owned(), msg.get_string());
+            info!("SP 127.0.0.1 received-final-answer");
             msg
+        },
+        Err(err) => {
+            error!("TO {} invalid-socket-address", server_ip.to_owned());
+            panic!("{err}")
         }
-        Err(err) => panic!("{err}"),
     }
 }
 
@@ -194,7 +208,6 @@ fn receive_client(
     socket: &UdpSocket,
 ) -> Result<DNSMessage, &'static str> {
     let mut return_message = Ok(DNSMessage::new());
-    println!("DNS MESSAGE:\n{}", dns_recv_message.get_string());
     if let Some(response_code) = dns_recv_message.header.response_code {
         match response_code {
             0 => {
@@ -287,3 +300,4 @@ fn query_builder(domain_name: String, query_types: Vec<QueryType>, flag: u8) -> 
 
     return dns_message;
 }
+
