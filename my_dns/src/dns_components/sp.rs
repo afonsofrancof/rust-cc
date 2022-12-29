@@ -1,5 +1,5 @@
-use std::net::{Ipv4Addr, IpAddr};
-use std::thread::{self, sleep};
+use std::net::IpAddr;
+use std::thread;
 use std::time::Duration;
 use std::{
     collections::HashMap,
@@ -7,10 +7,11 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+use crate::dns_structs::dns_domain_name::Domain;
 use crate::dns_structs::server_config::{self, ServerConfig};
 use crate::dns_structs::{dns_message::DNSEntry, domain_database_struct::DomainDatabase};
 
-pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfig) {
+pub fn db_sync_listener(db: HashMap<Domain, DomainDatabase>, config: ServerConfig) {
     let listener = match TcpListener::bind("0.0.0.0:8000") {
         Ok(lst) => lst,
         Err(err) => panic!("Couldn't bind tcp listener"),
@@ -35,7 +36,7 @@ pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfi
     }
 }
 
-fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) {
+fn db_sync_handler(stream: &mut TcpStream, db: HashMap<Domain, DomainDatabase>) {
     // ler dominio pedido na stream
     // enviar numero de entries da db desse dominio
     let mut buf = [0u8; 1000];
@@ -44,12 +45,11 @@ fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) 
         Err(err) => panic!("{err}"),
     };
     let domain_name_bin = buf[0..byte_num].to_vec();
-    let domain_name = String::from_utf8(domain_name_bin).unwrap();
-    println!("Lenght socket:{}", domain_name.len());
+    let domain_name = Domain::new(String::from_utf8(domain_name_bin).unwrap());
 
     let domain_db = match db.get(&domain_name) {
         Some(ddb) => ddb,
-        None => panic!("Database not found for {}", domain_name.to_owned()),
+        None => panic!("Database not found for {}", domain_name.to_string()),
     };
 
     // enviar SERIAL
@@ -126,7 +126,7 @@ fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) 
     for entry in entries_to_send {
         println!(
             "{} {} {} {}",
-            entry.name, entry.type_of_value, entry.value, entry.ttl
+            entry.domain_name.to_string(), entry.type_of_value, entry.value, entry.ttl
         );
         ebuf.push((seq_number >> 8) as u8);
         ebuf.push(seq_number as u8);

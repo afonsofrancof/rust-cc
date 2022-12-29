@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::dns_structs::server_config::ServerConfig;
+use crate::dns_structs::{server_config::ServerConfig, dns_domain_name::Domain};
 
 pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
     info!("Opening file");
@@ -57,13 +57,13 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
             cap[3].to_string()
         );
         match &cap[2] {
-            "DB" => server_config.add_domain_db(name, cap[3].to_string()),
-            "SS" => server_config.add_domain_ss(name, cap[3].to_string()),
-            "SP" => server_config.set_domain_sp(name, cap[3].to_string()),
-            "DD" => server_config.add_server_dd(name, cap[3].to_string()),
+            "DB" => server_config.add_domain_db(Domain::new(name), cap[3].to_string()),
+            "SS" => server_config.add_domain_ss(Domain::new(name), cap[3].to_string()),
+            "SP" => server_config.set_domain_sp(Domain::new(name), cap[3].to_string()),
+            "DD" => server_config.add_server_dd(Domain::new(name), cap[3].to_string()),
             "LG" => match &cap[1] {
                 "all" => server_config.set_all_log(cap[3].to_string()),
-                _ => server_config.set_domain_log(name, cap[3].to_string()),
+                _ => server_config.set_domain_log(Domain::new(name), cap[3].to_string()),
             },
             "ST" => server_config.set_st_db(cap[3].to_string()),
             _ => (),
@@ -75,6 +75,8 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::dns_structs::dns_domain_name::Domain;
+
     #[test]
     fn test_config_parse() {
         let get_config = super::get("etc/test-config.conf".to_string());
@@ -85,11 +87,11 @@ mod tests {
         };
 
         let mut server_config = super::ServerConfig::new();
-        server_config.add_domain_db("example.com.".to_owned(), "etc/example-com.db".to_string());
-        server_config.add_domain_ss("example.com.".to_owned(), "193.123.5.189".to_owned());
-        server_config.add_domain_ss("example.com.".to_owned(), "193.123.5.190:5353".to_owned());
-        server_config.add_server_dd("example.com.".to_owned(), "127.0.0.1".to_owned());
-        server_config.set_domain_log("example.com.".to_owned(), "logs/example-com.log".to_owned());
+        server_config.add_domain_db(Domain::new("example.com.".to_owned()), "etc/example-com.db".to_string());
+        server_config.add_domain_ss(Domain::new("example.com.".to_owned()), "193.123.5.189".to_owned());
+        server_config.add_domain_ss(Domain::new("example.com.".to_owned()), "193.123.5.190:5353".to_owned());
+        server_config.add_server_dd(Domain::new("example.com.".to_owned()), "127.0.0.1".to_owned());
+        server_config.set_domain_log(Domain::new("example.com.".to_owned()), "logs/example-com.log".to_owned());
         server_config.set_all_log("logs/all.log".to_owned());
         server_config.set_st_db("etc/rootservers.db".to_owned());
         

@@ -1,3 +1,4 @@
+use crate::dns_structs::dns_domain_name::Domain;
 use crate::dns_structs::dns_message::{DNSEntry, QueryType};
 use crate::dns_structs::domain_database_struct::DomainDatabase;
 use core::panic;
@@ -75,7 +76,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
 
         let ttl: u32 = temp_ttl.parse().unwrap();
         let entry = DNSEntry {
-            name,
+            domain_name: Domain::new(name),
             type_of_value,
             value,
             ttl,
@@ -126,7 +127,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         let ttl: u32 = temp_ttl.parse().unwrap();
 
         let temp_entry: DNSEntry = DNSEntry {
-            name: name.to_string(),
+            domain_name: Domain::new(name.to_owned()),
             type_of_value: type_of_value.to_owned(),
             value,
             ttl,
@@ -134,7 +135,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         };
 
         match type_of_value.as_str() {
-            "NS" => domain_database.add_ns_record(name.to_owned(), temp_entry),
+            "NS" => domain_database.add_ns_record(Domain::new(name), temp_entry),
             "A" => domain_database.add_a_record(temp_entry),
             "CNAME" => domain_database.add_cname_record(temp_entry),
             "MX" => domain_database.add_mx_record(temp_entry),

@@ -1,9 +1,11 @@
 use std::{collections::HashMap, net::SocketAddr, ops::Add};
 
+use super::dns_domain_name::Domain;
+
 #[derive(Clone,PartialEq)]
 pub struct ServerConfig {
-    domain_configs: HashMap<String, DomainConfig>,
-    server_dds: Option<HashMap<String, SocketAddr>>,
+    domain_configs: HashMap<Domain, DomainConfig>,
+    server_dds: Option<HashMap<Domain, SocketAddr>>,
     all_log: String,
     st_db: String,
 }
@@ -24,7 +26,7 @@ impl ServerConfig {
             st_db: "".to_string(),
         }
     }
-    pub fn add_domain_db(&mut self, domain: String, db_path: String) {
+    pub fn add_domain_db(&mut self, domain: Domain, db_path: String) {
         match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
                 domain_config.set_domain_db(db_path);
@@ -36,17 +38,17 @@ impl ServerConfig {
             }
         }
     }
-    pub fn set_domain_sp(&mut self, domain: String, addr_string: String) {
+    pub fn set_domain_sp(&mut self, domain: Domain, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
         let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("8000"),
             2 => addr_string,
-            _ => panic!("Malformed IP on {domain}'s SP entry"),
+            _ => panic!("Malformed IP on {}'s SP entry",domain.to_string()),
         };
         println!("Address string parsed: {}", addr_string_parsed);
         let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
-            Err(_) => panic!("Could not parse {domain} SP's IP"),
+            Err(_) => panic!("Could not parse {} SP's IP",domain.to_string()),
         };
         match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
@@ -59,16 +61,16 @@ impl ServerConfig {
             }
         };
     }
-    pub fn add_domain_ss(&mut self, domain: String, addr_string: String) {
+    pub fn add_domain_ss(&mut self, domain: Domain, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
         let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("5353"),
             2 => addr_string,
-            _ => panic!("Malformed IP on {domain}'s SS entry"),
+            _ => panic!("Malformed IP on {}'s SS entry",domain.to_string()),
         };
         let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
-            Err(_) => panic!("Could not parse an SP IP from {domain}"),
+            Err(_) => panic!("Could not parse an SP IP from {}",domain.to_string()),
         };
         match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => domain_config.add_domain_ss(addr),
@@ -79,7 +81,7 @@ impl ServerConfig {
             }
         };
     }
-    pub fn set_domain_log(&mut self, domain: String, domain_log: String) {
+    pub fn set_domain_log(&mut self, domain: Domain, domain_log: String) {
         match self.domain_configs.get_mut(&domain) {
             Some(domain_config) => {
                 domain_config.set_domain_log(domain_log);
@@ -91,12 +93,12 @@ impl ServerConfig {
             }
         }
     }
-    pub fn add_server_dd(&mut self, domain: String, addr_string: String) {
+    pub fn add_server_dd(&mut self, domain: Domain, addr_string: String) {
         let addr_vec = addr_string.split(':').collect::<Vec<_>>();
         let addr_string_parsed = match addr_vec.len() {
             1 => addr_vec[0].to_string().add(":").add("5353"),
             2 => addr_string,
-            _ => panic!("Malformed IP on DD entry for {domain}"),
+            _ => panic!("Malformed IP on DD entry for {}",domain.to_string()),
         };
         let addr = match SocketAddr::parse_ascii(addr_string_parsed.as_bytes()) {
             Ok(addr) => addr,
@@ -120,7 +122,7 @@ impl ServerConfig {
     pub fn set_st_db(&mut self, path: String) {
         self.st_db = path;
     }
-    pub fn get_domain_configs(&self) -> HashMap<String, DomainConfig> {
+    pub fn get_domain_configs(&self) -> HashMap<Domain, DomainConfig> {
         self.domain_configs.to_owned()
     }
     pub fn get_all_ss(&self) -> Vec<SocketAddr> {
