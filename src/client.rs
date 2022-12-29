@@ -15,6 +15,7 @@ use my_dns::{dns_make::{dns_recv, dns_send}, dns_structs::dns_domain_name::Domai
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
 };
+
 use rand::random;
 use std::ops::Add;
 use std::{io, net::UdpSocket, time::Duration};
