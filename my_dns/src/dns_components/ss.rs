@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     dns_parse::domain_database_parse,
-    dns_structs::domain_database_struct::{DomainDatabase, SOA},
+    dns_structs::{domain_database_struct::{DomainDatabase, SOA}, dns_domain_name::Domain},
 };
 
 #[derive(Debug)]
@@ -20,9 +20,9 @@ enum ZoneTransferError {
 }
 
 pub fn db_sync(
-    domain_name: String,
+    domain_name: Domain,
     sp_addr: SocketAddr,
-    db: Arc<Mutex<HashMap<String, DomainDatabase>>>,
+    db: Arc<Mutex<HashMap<Domain, DomainDatabase>>>,
 ) {
     // initial sync
     let mut domain_db: Option<DomainDatabase>;
@@ -63,7 +63,7 @@ pub fn db_sync(
 }
 
 fn zone_transfer(
-    domain_name: &String,
+    domain_name: &Domain,
     sp_addr: SocketAddr,
     serial: u32,
 ) -> Result<DomainDatabase, ZoneTransferError> {
@@ -76,7 +76,7 @@ fn zone_transfer(
     };
 
     // enviar o nome do dominio pretendido
-    stream.write(domain_name.as_bytes()).unwrap();
+    stream.write(domain_name.to_string().as_bytes()).unwrap();
 
     let mut buf = [0u8; 1000];
     // receber o SERIAL - MUDAR ISTO NO SP

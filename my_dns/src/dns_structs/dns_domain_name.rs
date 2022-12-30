@@ -1,8 +1,15 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Domain {
     parts: Vec<String>,
 }
 
 impl Domain {
+    pub fn new_empty() -> Domain{
+        Domain { parts: Vec::new()}
+    }
+
     pub fn new(input: String) -> Domain {
         // If the input string is empty or consists of only a `"."` character,
         // create a `parts` vector that is empty.
