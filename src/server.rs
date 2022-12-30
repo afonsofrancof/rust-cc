@@ -149,12 +149,6 @@ fn create_logger() -> log4rs::Handle {
 }
 
 pub fn start_server(config: ServerConfig, port: u16, once: bool) {
-    // parsing da config
-    let config: ServerConfig = match server_config_parse::get(config_path) {
-        Ok(config) => config,
-        Err(_err) => panic!("Server config path not found!"),
-    };
-
     let mut database: HashMap<Domain, DomainDatabase> = HashMap::new();
 
     let domain_configs = config.get_domain_configs();
@@ -162,13 +156,13 @@ pub fn start_server(config: ServerConfig, port: u16, once: bool) {
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
-            match domain_database_parse::get(db) {
+            match domain_database_parse::get(db.to_owned()) {
                 Ok(db_parsed) => {
                     info!("EV @ db-file-read {}", db);
                     database.insert(Domain::new(domain_name.to_string()), db_parsed);
                 }
                 Err(err) => {
-                    error!("FL @ db-file-read-fail {}", domain_name);
+                    error!("FL @ db-file-read-fail {}", domain_name.to_string());
                     panic!("{err}")
                 }
             };
@@ -237,14 +231,11 @@ fn client_handler(
     };
     let mut write_log: bool = false;
     let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
-    if let Some(path) = config.get_domain_configs().get(queried_domain.as_str()) {
+    if let Some(path) = config.get_domain_configs().get(&queried_domain) {
         write_log = true;
     }
 
     info!("QR {} {}", src_addr.ip(), dns_message.get_string());
-    if !queried_domain.ends_with(".") {
-        queried_domain = queried_domain.add(".");
-    };
 
     let database_map = database_mutex.lock().unwrap();
     //Go to our database_map and get the domain specific database
@@ -259,7 +250,7 @@ fn client_handler(
         }) {
         Some((domain_name, domain_database)) => (domain_name, domain_database),
         None => {
-            info!("EV @ response-not-found {}", queried_domain);
+            info!("EV @ response-not-found {}", queried_domain.to_string());
             return;
             //panic!("My domains can't answer this (need to add feature of resolver if no DD field exists )")
         }

@@ -1,13 +1,14 @@
 extern crate rustcc;
 
-use my_dns::dns_structs::{dns_message::{QueryType, DNSMessage, DNSQueryInfo, DNSMessageData, DNSEntry, DNSMessageHeaders}, dns_domain_name::Domain};
+use my_dns::{dns_structs::{dns_message::{QueryType, DNSMessage, DNSQueryInfo, DNSMessageData, DNSEntry, DNSMessageHeaders}, dns_domain_name::Domain}, dns_parse::server_config_parse};
 use rustcc::{client, server};
 use std::{thread, time::Duration, collections::HashMap};
 
 #[test]
 fn test_client_server() {
     let server = thread::spawn(move || {
-        server::start_server("etc/test-example-com.conf".to_string(), 5454,true)
+        let config = server_config_parse::get("etc/test-example-com.conf".to_string()).unwrap();
+        server::start_server(config, 5454,true)
     });
     thread::sleep(Duration::new(1, 0));
     let client = thread::spawn(move || {
