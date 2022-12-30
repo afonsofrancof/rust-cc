@@ -2,31 +2,39 @@ use crate::dns_structs::dns_domain_name::Domain;
 use crate::dns_structs::dns_message::{DNSEntry, QueryType};
 use crate::dns_structs::domain_database_struct::DomainDatabase;
 use core::panic;
+use log::{debug, error, info, warn};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::ops::Add;
-use log::{error,warn,info,debug};
-use std::path::Path;
 
 pub fn get(file_path: String) -> Result<DomainDatabase, &'static str> {
     // Abrir o ficheiro de database para leitura
-    let mut file = match File::open(file_path) {
-        Ok(file) => file,
-        Err(_err) => return Err("Couldn't open file"),
+    let mut file = match File::open(file_path.to_owned()) {
+        Ok(file) => {
+            debug!("EV @ db-file-open {}", file_path);
+            file
+        }
+        Err(_err) => {
+            error!("SP @ database-parse-error {}", file_path);
+            return Err("Couldn't open file");
+        }
     };
     // String em memoria com o ficheiro para dar parse
     let mut read = String::new();
 
     match file.read_to_string(&mut read) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(_err) => return Err("Couldn't Read to String"),
     };
 
     let domain_database = match parse_from_str(read) {
         Ok(database) => Ok(database),
-        Err(_err) => Err("Error while reading Database")
+        Err(_err) => {
+            debug!("FL @ unable-to-read-db-file {}", file_path);
+            Err("Error while reading Database")
+        }
     };
     domain_database
 }
@@ -55,6 +63,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
     for cap in regex_variables.captures_iter(&read) {
         variables.insert(cap[1].to_string(), cap[2].to_string());
     }
+    debug!("EV @ variable-regex-capture");
 
     // Mapa que vai conter todas as SOAs entries tendo o tipo de SOA como key (aka SOAADMIN,SOAEXPIRE, etc)
     let mut domain_database = DomainDatabase::new();
@@ -89,7 +98,10 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
             "SOAREFRESH" => domain_database.soa_entries.refresh = entry,
             "SOARETRY" => domain_database.soa_entries.retry = entry,
             "SOAEXPIRE" => domain_database.soa_entries.expire = entry,
-            _ => panic!("SOA type does not exist")
+            _ => {
+                debug!("FL @ invalid-soa-entry");
+                return Err("SOA type does not exist");
+            }
         }
     }
 
@@ -101,13 +113,9 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         let value: String = cap[3].to_string();
         let mut temp_ttl: String = cap[4].to_string();
         let priority: Option<u16> = match cap.get(5) {
-            Some(p) => {
-                println!("Priority:{}",p.as_str());
-                match p.as_str().parse::<u16>(){
-                    Ok(nmbr) => Some(nmbr),
-                    Err(err) => panic!("{err}")
-                    
-                }
+            Some(p) => match p.as_str().parse::<u16>() {
+                Ok(nmbr) => Some(nmbr),
+                Err(err) => panic!("{err}"),
             },
             _ => None,
         };
@@ -119,7 +127,12 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         if !name.ends_with(".") {
             let main_domain = match variables.get("@") {
                 Some(value) => value,
-                None => panic!("Non complete domain name found in entry and no @ variable defined"),
+                None => {
+                    debug!("FL @ incorrect-domain-name {}", name);
+                    return Err(
+                        "Non complete domain name found in entry and no @ variable defined",
+                    );
+                }
             };
             name = name.add(".").add(main_domain);
         }
@@ -142,8 +155,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
             "PTR" => domain_database.add_ptr_record(temp_entry),
             _ => continue,
         }
-        println!("Type of value {}",type_of_value.as_str());
     }
-    
+
     Ok(domain_database)
 }
