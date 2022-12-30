@@ -37,7 +37,7 @@ pub fn get(file_path: String) -> Result<ServerConfig, &'static str> {
     };
 
     info!("Capturing variables");
-    let regex_variables = Regex::new(r"(?m)^([a-z.0-9-]+) (DB|SS|DD|LG|ST|SP) (.*)").unwrap();
+    let regex_variables = Regex::new(r"(?m)^([a-z.0-9-]+) +(DB|SS|DD|LG|ST|SP) +(.*)").unwrap();
 
     info!("Starting variable parse");
     let mut server_config = ServerConfig::new();
