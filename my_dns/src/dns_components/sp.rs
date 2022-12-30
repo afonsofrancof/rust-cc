@@ -6,14 +6,19 @@ use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
 };
+use log::{info,debug,warn,error};
 
 use crate::dns_structs::server_config::{self, ServerConfig};
 use crate::dns_structs::{dns_message::DNSEntry, domain_database_struct::DomainDatabase};
 
 pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfig) {
-    let listener = match TcpListener::bind("0.0.0.0:8000") {
+    let default_listener = "0.0.0.0:8000";
+    let listener = match TcpListener::bind(default_listener) {
         Ok(lst) => lst,
-        Err(err) => panic!("Couldn't bind tcp listener"),
+        Err(err) => {
+            error!("FL @ zone-transfer-listener-fail {}", default_listener);
+            return
+        }
     };
 
     for stream in listener.incoming() {
@@ -26,11 +31,11 @@ pub fn db_sync_listener(db: HashMap<String, DomainDatabase>, config: ServerConfi
                     let new_db = db.clone();
                     thread::spawn(move || db_sync_handler(&mut stream, new_db));
                 } else {
-                    println!("Denied zone transfer for {}", incoming_addr);
+                    info!("EZ denied-zone-transfer SP {}", incoming_addr.to_string(),);
                 }
             }
         } else {
-            println!("Couldn't connect to incoming tcp stream");
+            info!("EV @ zone-transfer-tcp-fail");
         }
     }
 }
@@ -66,7 +71,6 @@ fn db_sync_handler(stream: &mut TcpStream, db: HashMap<String, DomainDatabase>) 
 
     let mut entries_to_send: Vec<DNSEntry> = Vec::new();
     // get all SOA
-
     entries_to_send.push(soas.primary_ns);
     entries_to_send.push(soas.contact_email);
     entries_to_send.push(soas.serial);

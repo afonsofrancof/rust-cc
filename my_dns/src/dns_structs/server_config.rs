@@ -113,13 +113,14 @@ impl ServerConfig {
             }
         };
     }
-
+    
     pub fn set_all_log(&mut self, all_log: String) {
         self.all_log = all_log;
     }
     pub fn set_st_db(&mut self, path: String) {
         self.st_db = path;
     }
+
     pub fn get_domain_configs(&self) -> HashMap<String, DomainConfig> {
         self.domain_configs.to_owned()
     }
@@ -136,6 +137,13 @@ impl ServerConfig {
         }
         return all_ss;
     }
+    pub fn get_all_log(&self) -> String{
+        self.all_log.to_owned()
+    }
+    pub fn get_st_db(&self) -> String {
+        self.st_db.to_owned()
+    }
+
 }
 
 impl DomainConfig {

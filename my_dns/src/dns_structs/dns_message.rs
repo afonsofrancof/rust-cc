@@ -145,14 +145,13 @@ impl DNSMessageData {
         let mut res = String::new();
         
         res.push_str(self.query_info.get_string().as_str());
-        res.push_str("\n");
 
         let rv = match &self.response_values {
             Some(hm) => {
                 let vec_str: Vec<String> = hm.values().flatten().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
-                    entry.push_str(",\n");
+                    entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
                 sb
@@ -166,7 +165,7 @@ impl DNSMessageData {
                 let vec_str: Vec<String> = vec.iter().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
-                    entry.push_str(",\n");
+                    entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
                 sb
@@ -180,7 +179,7 @@ impl DNSMessageData {
                 let vec_str: Vec<String> = vec.iter().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
-                    entry.push_str(",\n");
+                    entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
                 sb
