@@ -167,15 +167,8 @@ fn create_logger() -> log4rs::Handle {
 
 pub fn start_server(config: ServerConfig, port: u16, once: bool) {
     //Global variables
-    let config: ServerConfig;
     let mut database: HashMap<Domain, DomainDatabase>;
     let domain_configs: HashMap<Domain, DomainConfig>;
-
-    // parsing da config
-    config = match server_config_parse::get(config_path) {
-        Ok(config) => config,
-        Err(_err) => panic!("Server config path not found!"),
-    };
 
     database = HashMap::new();
 
