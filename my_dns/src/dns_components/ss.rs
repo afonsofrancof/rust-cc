@@ -4,12 +4,18 @@ use std::{
     net::{SocketAddr, TcpStream},
     string::String,
     sync::{Arc, Mutex},
-    thread, time,
+    thread,
+    time::{Duration, Instant},
 };
+
+use log::{info, debug};
 
 use crate::{
     dns_parse::domain_database_parse,
-    dns_structs::{domain_database_struct::{DomainDatabase, SOA}, dns_domain_name::Domain},
+    dns_structs::{
+        dns_domain_name::Domain,
+        domain_database_struct::{DomainDatabase, SOA},
+    },
 };
 
 #[derive(Debug)]
@@ -47,16 +53,16 @@ pub fn db_sync(
                 locked_db.insert(domain_name.to_owned(), domain_db.clone());
                 drop(locked_db);
                 initial_flag = false;
-                thread::sleep(time::Duration::from_secs(refresh));
+                thread::sleep(Duration::from_secs(refresh));
             }
             Err(ZoneTransferError::SERIAL) => {
-                thread::sleep(time::Duration::from_secs(refresh));
+                thread::sleep(Duration::from_secs(refresh));
             }
             Err(ZoneTransferError::CONERR) => {
-                thread::sleep(time::Duration::from_secs(retry));
+                thread::sleep(Duration::from_secs(retry));
             }
             Err(ZoneTransferError::PARSEERR) => {
-                thread::sleep(time::Duration::from_secs(retry));
+                thread::sleep(Duration::from_secs(retry));
             }
         }
     }
@@ -67,55 +73,62 @@ fn zone_transfer(
     sp_addr: SocketAddr,
     serial: u32,
 ) -> Result<DomainDatabase, ZoneTransferError> {
+    let now = Instant::now();
+
     let mut stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
         Err(err) => {
+            debug!("EZ {} SS connection-fail",sp_addr);
             return Err(ZoneTransferError::CONERR);
             // panic!("Could't connect to addr {}", sp_addr);
         }
     };
-
     // enviar o nome do dominio pretendido
     stream.write(domain_name.to_string().as_bytes()).unwrap();
-
+    let mut total_bytes_transfered = 0;
     let mut buf = [0u8; 1000];
     // receber o SERIAL - MUDAR ISTO NO SP
     let mut serial_buf = [0u8; 4];
+    total_bytes_transfered += 4;
     stream.read_exact(&mut serial_buf);
     let received_serial = u32::from_ne_bytes(serial_buf);
 
     if received_serial == serial {
         // se o serial for igual envia um 0 para que o sp feche a ligacao
         stream.write(&[0u8]);
+        debug!(
+            "ZT {} SS same-SERIAL {} ms {} bytes",
+            sp_addr,
+            now.elapsed().as_millis(),
+            total_bytes_transfered
+        );
         return Err(ZoneTransferError::SERIAL);
     }
-    // caso o serial seja diferente envia um 1 ao sp para que ele envie a base de dados  
+    // caso o serial seja diferente envia um 1 ao sp para que ele envie a base de dados
     stream.write(&[1u8]);
 
     // recebe as entries que existem
-    stream.read(&mut buf);
+    total_bytes_transfered += stream.read(&mut buf).unwrap();
 
     let entries: u16 = (buf[0].to_owned() as u16 * 256) + buf[1].to_owned() as u16;
 
     // confirmacao resolver isto ...
-    stream.write(&mut buf);
+    stream.write(&mut buf).unwrap();
     let mut unparsed_db: Vec<String> = Vec::with_capacity(entries.clone().into());
 
     // codificao primeiros 2 bytes sao o numero de ordem da entry o resto e do tipo Entry
-    println!("Number of entries: {}", entries);
     for _i in 0..entries {
         let num_bytes = match stream.read(&mut buf) {
             Ok(bytes) => bytes,
             Err(err) => panic!("{err}"),
         };
-
+        total_bytes_transfered += num_bytes;
         let seq_number: u16 = (buf[0] as u16 * 256) + buf[1] as u16;
 
         let line_bin = buf[2..num_bytes - 2].to_vec();
 
         let mut line = String::from_utf8(line_bin).unwrap().to_owned();
         line.push('\n');
-        println!("{} - {}", seq_number, line);
         unparsed_db.insert(seq_number.to_owned().into(), line);
     }
     let mut db_txt: String = String::new();
@@ -124,9 +137,19 @@ fn zone_transfer(
         db_txt.push_str(line.as_str());
     }
 
-    let domain_db: DomainDatabase = match domain_database_parse::parse_from_str(db_txt) {
-        Ok(db) => db,
-        Err(_err) => return Err(ZoneTransferError::PARSEERR)//panic!("Coudn't parse database"),
-    };
-    Ok(domain_db)
+    match domain_database_parse::parse_from_str(db_txt) {
+        Ok(db) => {
+            info!(
+                "ZT {} SS {} ms {} bytes",
+                sp_addr,
+                now.elapsed().as_millis(),
+                total_bytes_transfered
+            );
+            Ok(db)
+        }
+        Err(_err) =>{ 
+            debug!("EZ {} SS database-parse-fail",sp_addr);
+            Err(ZoneTransferError::PARSEERR)
+        }
+    }
 }

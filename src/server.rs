@@ -1,5 +1,5 @@
 use clap::*;
-use log::{LevelFilter};
+use log::{debug, error, info, trace, warn, LevelFilter, Log, SetLoggerError};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -10,10 +10,7 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-    dns_components::{
-        sp::{db_sync_listener},
-        ss::db_sync,
-    },
+    dns_components::{sp::db_sync_listener, ss::db_sync},
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
 use my_dns::{
@@ -32,6 +29,11 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
+
+static DEFAULT_PORT: u16 = 5353;
+static DEFAULT_TIMEOUT: u16 = 20000;
+static LOG_PATTERN: &str = "[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {m}{n}";
+
 pub fn main() {
     // Argumentos de input da CLI para definir quais e quantos servidores inicializar
     let arguments = Command::new("server")
@@ -47,15 +49,61 @@ pub fn main() {
             Arg::new("port")
                 .short('p')
                 .long("port")
-                .required(true)
                 .help("The port the server will listen on"),
+            Arg::new("timeout")
+                .short('t')
+                .long("timeout")
+                .help("The timeout in milliseconds to wait for query responses"),
+            Arg::new("debug")
+                .short('b')
+                .action(ArgAction::SetTrue)
+                .long("debug")
+                .help("The flag to define if the server will show debug messages on stdout"),
         ])
         .get_matches();
 
-    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {h({l})} - {m}{n}");
+    let handle = create_logger();
+    //test if path exists
+    let config_path = arguments.get_one::<String>("config_path").unwrap();
+    let port: u16 = match arguments.get_one::<String>("port") {
+        Some(port) => match port.parse() {
+            Ok(ok_port) => ok_port,
+            Err(err) => panic!("{err}"),
+        },
+        None => DEFAULT_PORT,
+    };
+    let timeout: u16 = match arguments.get_one::<String>("timeout") {
+        Some(timeout) => match timeout.parse() {
+            Ok(ok_timeout) => ok_timeout,
+            Err(err) => panic!("{err}"),
+        },
+        None => DEFAULT_TIMEOUT,
+    };
+    let debug_mode: bool = arguments.get_flag("debug");
+
+    // parsing da config
+    let config: ServerConfig = match server_config_parse::get(config_path.to_string()) {
+        Ok(config) => {
+            info!("ST 127.0.0.1 {} {} {}", port, timeout, debug_mode);
+            config
+        }
+        Err(_err) => panic!("Server config path not found!"),
+    };
+
+    let all_log_path = config.get_all_log();
+    handle.set_config(create_logger_config(all_log_path, debug_mode));
+
+    start_server(config, port, false);
+}
+
+fn create_logger_config(log_path: String, debug: bool) -> log4rs::Config {
+    let logging_pattern = PatternEncoder::new(LOG_PATTERN);
     // Logging
-    let level = log::LevelFilter::Info;
-    let file_path = "log/beans.log";
+    let mut level = LevelFilter::Info;
+    if debug {
+        level = LevelFilter::Debug
+    }
+    let file_path = log_path;
 
     // Build a stderr logger.
     let stdout = ConsoleAppender::builder()
@@ -85,30 +133,39 @@ pub fn main() {
                 .build(LevelFilter::Trace),
         )
         .unwrap();
+    config
+}
+
+fn create_logger() -> log4rs::Handle {
+    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {m}{n}");
+    // Logging
+    let level = LevelFilter::Debug;
+
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(logging_pattern.to_owned()))
+        .target(Target::Stdout)
+        .build();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stdout", Box::new(stdout)),
+        )
+        .build(Root::builder().appender("stdout").build(level))
+        .unwrap();
 
     // Use this to change log levels at runtime.
     // This means you can change the default log level to trace
     // if you are trying to debug an issue and need more logs on then turn it off
     // once you are done.
-    let _handle = log4rs::init_config(config).unwrap();
-
-    //test if path exists
-    let config_path = match arguments.get_one::<String>("config_path") {
-        Some(path) => path,
-        None => panic!("No config path provided."),
-    };
-    let port: u16 = match arguments.get_one::<String>("port") {
-        Some(port) => match port.parse() {
-            Ok(ok_port) => ok_port,
-            Err(err) => panic!("{err}"),
-        },
-        None => panic!("No port provided."),
-    };
-
-    start_server(config_path.to_string(), port, false);
+    let handle = log4rs::init_config(config).unwrap();
+    return handle;
 }
 
-pub fn start_server(config_path: String, port: u16, once: bool) {
+pub fn start_server(config: ServerConfig, port: u16, once: bool) {
     //Global variables
     let config: ServerConfig;
     let mut database: HashMap<Domain, DomainDatabase>;
@@ -127,11 +184,15 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(db) = domain_config.get_domain_db() {
-            match domain_database_parse::get(db) {
+            match domain_database_parse::get(db.to_owned()) {
                 Ok(db_parsed) => {
+                    info!("EV @ db-file-read {}", db);
                     database.insert(Domain::new(domain_name.to_string()), db_parsed);
                 }
-                Err(err) => panic!("{err}"),
+                Err(err) => {
+                    error!("SP @ db-file-read-fail {}", domain_name.to_string());
+                    return;
+                }
             };
         }
     }
@@ -166,9 +227,10 @@ pub fn start_server(config_path: String, port: u16, once: bool) {
             Err(_) => panic!("Could not receive on socket"),
         };
         let new_db = mutable_db.clone();
-        println!("Received request from {}", src_addr);
-        let _handler =
-            thread::spawn(move || client_handler(buf.to_vec(), num_of_bytes, src_addr, new_db));
+        let config_clone = config.to_owned();
+        let _handler = thread::spawn(move || {
+            client_handler(buf.to_vec(), num_of_bytes, src_addr, config_clone, new_db)
+        });
         if once {
             break;
         };
@@ -179,13 +241,23 @@ fn client_handler(
     buf: Vec<u8>,
     num_of_bytes: usize,
     src_addr: SocketAddr,
+    config: ServerConfig,
     database_mutex: Arc<Mutex<HashMap<Domain, DomainDatabase>>>,
 ) {
-    let mut dns_message: DNSMessage = match bincode::deserialize(&buf) {
+    let mut dns_message: DNSMessage = match bincode::deserialize::<DNSMessage>(&buf) {
         Ok(message) => message,
-        Err(_) => panic!("Could not deserialize message"),
+        Err(_) => {
+            error!("ER {} pdu-deserialize-fail", src_addr.ip());
+            return;
+        }
     };
-    let queried_domain: Domain = dns_message.data.query_info.name.to_owned();
+    let mut write_log: bool = false;
+    let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
+    if let Some(path) = config.get_domain_configs().get(&queried_domain) {
+        write_log = true;
+    }
+
+    info!("QR {} {}", src_addr.ip(), dns_message.get_string());
 
     // Acquire a lock on the database
     let database_map = database_mutex.lock().unwrap();
@@ -194,6 +266,7 @@ fn client_handler(
     let is_parent_cached = database_map
         .iter()
         .any(|(dn, _)| queried_domain.is_subdomain_of(dn));
+
     if is_parent_cached {
         //Parent Domain is in our database
 
@@ -255,7 +328,6 @@ fn client_handler(
                 None => false,
             };
 
-
             if lower_authority_exists {
                 //Reply back to user with authorities_values and extra_values
                 dns_message.data.authorities_values = queried_domain_ns.to_owned();
@@ -264,7 +336,7 @@ fn client_handler(
                     Some(ref vec) => Some(vec.len().try_into().unwrap()),
                     None => None,
                 };
-            dns_message.header.response_code = Some(1);
+                dns_message.header.response_code = Some(1);
             } else {
                 //Here we call de SR module
                 //Dont forget response code
@@ -298,7 +370,11 @@ fn client_handler(
         //List of all values to translate
         let to_translate = {
             let mut auth_copy = auth_vals.to_owned();
-            let mut no_a_records = response_vals.into_iter().filter(|entry| entry.type_of_value != "A").to_owned().collect::<Vec<DNSEntry>>();
+            let mut no_a_records = response_vals
+                .into_iter()
+                .filter(|entry| entry.type_of_value != "A")
+                .to_owned()
+                .collect::<Vec<DNSEntry>>();
             no_a_records.append(&mut auth_copy);
             no_a_records
         };
@@ -337,11 +413,21 @@ fn client_handler(
     let port = src_addr.port();
     let send_socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => socket,
-        Err(_) => panic!("Could not bind response socket"),
+        Err(_) => {
+            debug!("EV @ client-handler-socket-fail");
+            return;
+        }
     };
     let destination = format!("{}:{}", addr, port);
-    let _num_sent_bytes = match dns_send::send(dns_message, &send_socket, destination) {
-        Ok(num_bytes) => num_bytes,
-        Err(err) => panic!("{err}"),
-    };
+    let _num_sent_bytes =
+        match dns_send::send(dns_message.to_owned(), &send_socket, destination.to_owned()) {
+            Ok(num_bytes) => {
+                info!("RP {} {}", destination, dns_message.get_string());
+                num_bytes
+            }
+            Err(_err) => {
+                info!("EV @ send-message-fail");
+                return;
+            }
+        };
 }
