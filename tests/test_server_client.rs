@@ -13,7 +13,7 @@ fn test_client_server() {
     let client = thread::spawn(move || {
         client::start_client(
             Domain::new("www.example.com".to_string()),
-            vec![QueryType::A],
+            QueryType::A,
             4,
             "127.0.0.1:5454".to_string(),
         )
@@ -21,10 +21,9 @@ fn test_client_server() {
 
     match client.join() {
         Ok(msg) => {
-            let dns_query_info = DNSQueryInfo{ name: Domain::new("www.example.com".to_string()) ,type_of_value: vec![QueryType::A] } ;
+            let dns_query_info = DNSQueryInfo{ name: Domain::new("www.example.com".to_string()) ,type_of_value: QueryType::A } ;
             //Fill in response_values
-            let mut response_values = HashMap::new();
-            response_values.insert(QueryType::A, vec![DNSEntry{ domain_name: Domain::new("www.example.com.".to_string()), type_of_value: "A".to_string(), value: "10.3.3.1".to_string(), ttl: 86400, priority: Some(200)}]);
+            let response_values = vec![DNSEntry{ domain_name: Domain::new("www.example.com.".to_string()), type_of_value: "A".to_string(), value: "10.3.3.1".to_string(), ttl: 86400, priority: Some(200)}];
             //Fill in authorities_values
             let authorities_values = vec![DNSEntry{ domain_name: Domain::new("example.com.".to_string()), type_of_value: "NS".to_string(), value: "ns1.example.com.".to_string(), ttl:86400, priority: None }];
             //Fill in extra_values
