@@ -145,6 +145,6 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
         println!("Type of value {}",type_of_value.as_str());
     }
 
-    
+    domain_database.authority = true; 
     Ok(domain_database)
 }

@@ -11,9 +11,12 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::{dns_make::{dns_recv, dns_send}, dns_structs::dns_domain_name::Domain};
 use my_dns::dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
+};
+use my_dns::{
+    dns_make::{dns_recv, dns_send},
+    dns_structs::dns_domain_name::Domain,
 };
 use rand::random;
 use std::fs;
@@ -33,7 +36,6 @@ pub fn main() {
                 .required(true)
                 .help("Name of the domain to query"),
             Arg::new("query_types")
-                .num_args(1..=5)
                 .short('t')
                 .long("types")
                 .required(true)
@@ -54,8 +56,6 @@ pub fn main() {
                 .help("Debug Mode"),
         ])
         .get_matches();
-
-
 
     // Remover o ficheiro de log anterior, caso exista
     let _rm = fs::remove_file("logs/client.log");
@@ -115,20 +115,17 @@ pub fn main() {
 
     let domain_name = arguments.get_one::<String>("domain").unwrap();
 
-    let input_types = arguments.get_many::<String>("query_types").unwrap();
+    let query_type_string = arguments.get_one::<String>("query_types").unwrap();
 
     // Passar de string para a Enum QueryType
     // resultando em erro, e cancelada a execucao
-    let mut query_types: Vec<QueryType> = Vec::new();
-    for qtype in input_types {
-        match QueryType::from_string(qtype.to_string()) {
-            Ok(q) => query_types.push(q),
-            Err(_e) => {
-                error!("SP 127.0.0.1 invalid-user-input {qtype}");
-                return;
-            }
-        };
-    }
+    let query_type: QueryType = match QueryType::from_string(query_type_string.to_string()) {
+        Ok(q) => q,
+        Err(_e) => {
+            error!("SP 127.0.0.1 invalid-user-input {query_type_string}");
+            return;
+        }
+    };
 
     // O sistema de flags funciona em binario em que se soma o valor de todas as flags
     // Q  => 1 0 0 = 4
@@ -145,20 +142,22 @@ pub fn main() {
         None => "127.0.0.1:0".to_string(),
     };
 
-    start_client(Domain::new(domain_name.to_string()), query_types, flag, server_ip);
-
-
+    start_client(
+        Domain::new(domain_name.to_string()),
+        query_type,
+        flag,
+        server_ip,
+    );
 }
 
 pub fn start_client(
     domain_name: Domain,
-    query_types: Vec<QueryType>,
+    query_type: QueryType,
     flag: u8,
     server_ip: String,
 ) -> DNSMessage {
-
     // Construir a mensagem de DNS a ser enviada e dar serialize
-    let mut dns_message = query_builder(domain_name, query_types, flag);
+    let mut dns_message = query_builder(domain_name, query_type, flag);
     info!("EV @ dns-msg-created");
 
     // Inicializar a socket UDP
@@ -242,20 +241,19 @@ fn receive_client(
                             vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
                         }) {
                             // Procurar o IP do servidor de autoridade na lista de valores extra
-                            new_ip =
-                                match dns_recv_message.data.extra_values {
-                                    // Procurar na lista de valores extra o IP do servidor de autoridade
-                                    Some(ref extra_values) => {
-                                        match extra_values.iter().clone().find(|extra| {
-                                            extra.domain_name == Domain::new(val.value.to_string())
-                                        }) {
-                                            Some(ns) => ns.value.to_owned(),
-                                            None => continue,
-                                        }
+                            new_ip = match dns_recv_message.data.extra_values {
+                                // Procurar na lista de valores extra o IP do servidor de autoridade
+                                Some(ref extra_values) => {
+                                    match extra_values.iter().clone().find(|extra| {
+                                        extra.domain_name == Domain::new(val.value.to_string())
+                                    }) {
+                                        Some(ns) => ns.value.to_owned(),
+                                        None => continue,
                                     }
-                                    // Nao foi encontrado nenhum valor extra
-                                    None => "No extra values found".to_string(),
-                                };
+                                }
+                                // Nao foi encontrado nenhum valor extra
+                                None => "No extra values found".to_string(),
+                            };
                         } else {
                             new_ip = val.value.to_owned();
                         }
@@ -267,13 +265,20 @@ fn receive_client(
                             2 => new_ip,
                             // Nao foi encontrado um IP valido
                             _ => {
-                                error!("SP 127.0.0.1 received-malformed-ip: {}", val.domain_name.to_string());
+                                error!(
+                                    "SP 127.0.0.1 received-malformed-ip: {}",
+                                    val.domain_name.to_string()
+                                );
                                 panic!("Malformed IP on {}", val.domain_name.to_string());
                             }
                         };
-                        
-                        // Enviar a query para o novo IP 
-                        let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, new_ip_address.to_owned(),) {
+
+                        // Enviar a query para o novo IP
+                        let _size_sent = match dns_send::send(
+                            dns_message.to_owned(),
+                            &socket,
+                            new_ip_address.to_owned(),
+                        ) {
                             Ok(size_sent) => {
                                 info!("QE {} sent-new-query", new_ip_address.to_owned());
                                 size_sent
@@ -283,11 +288,15 @@ fn receive_client(
                                 panic!("{err}");
                             }
                         };
-                        
+
                         // Receber a resposta
                         let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
                             Ok(response) => {
-                                info!("RR {} dns-msg-received: {}",new_ip_address.to_owned(),response.0.get_string());
+                                info!(
+                                    "RR {} dns-msg-received: {}",
+                                    new_ip_address.to_owned(),
+                                    response.0.get_string()
+                                );
                                 response
                             }
                             Err(err) => match err {
@@ -313,10 +322,10 @@ fn receive_client(
     return_message
 }
 
-fn query_builder(domain_name: Domain, query_types: Vec<QueryType>, flag: u8) -> DNSMessage {
+fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
     let dns_query_info = DNSQueryInfo {
         name: domain_name,
-        type_of_value: query_types,
+        type_of_value: query_type,
     };
     let dns_message_data = DNSMessageData {
         query_info: dns_query_info,

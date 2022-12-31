@@ -1,5 +1,5 @@
 use clap::*;
-use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
+use log::{LevelFilter};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -11,10 +11,10 @@ use log4rs::{
 };
 use my_dns::{
     dns_components::{
-        sp::{self, db_sync_listener},
+        sp::{db_sync_listener},
         ss::db_sync,
     },
-    dns_structs::{dns_message, dns_domain_name::Domain},
+    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
 use my_dns::{
     dns_make::dns_send,
@@ -109,15 +109,20 @@ pub fn main() {
 }
 
 pub fn start_server(config_path: String, port: u16, once: bool) {
+    //Global variables
+    let config: ServerConfig;
+    let mut database: HashMap<Domain, DomainDatabase>;
+    let domain_configs: HashMap<Domain, DomainConfig>;
+
     // parsing da config
-    let config: ServerConfig = match server_config_parse::get(config_path) {
+    config = match server_config_parse::get(config_path) {
         Ok(config) => config,
         Err(_err) => panic!("Server config path not found!"),
     };
 
-    let mut database: HashMap<Domain, DomainDatabase> = HashMap::new();
+    database = HashMap::new();
 
-    let domain_configs = config.get_domain_configs();
+    domain_configs = config.get_domain_configs();
 
     //Add SP's to DB
     for (domain_name, domain_config) in domain_configs.iter() {
@@ -180,158 +185,131 @@ fn client_handler(
         Ok(message) => message,
         Err(_) => panic!("Could not deserialize message"),
     };
-    let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
+    let queried_domain: Domain = dns_message.data.query_info.name.to_owned();
 
+    // Acquire a lock on the database
     let database_map = database_mutex.lock().unwrap();
-    //Go to our database_map and get the domain specific database
-    let (domain_name, domain_name_db) = match database_map
+
+    //Check if there is any parent domain of the queried domain on our database
+    let is_parent_cached = database_map
         .iter()
-        .clone()
-        .filter(|(dn, _domain_db)| {
-            queried_domain.is_subdomain_of(dn.to_owned())
-        })
-        .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
-            domain_name1.to_string().cmp(&domain_name2.to_string())
-        }) {
-        Some((domain_name, domain_database)) => (domain_name, domain_database),
-        None => panic!(
-            "My domains can't answer this (need to add feature of resolver if no DD field exists )"
-        ),
-    };
-    //Get NS (or the closest) of the queried domain 
-    if let Some((domain_name_authority, authority_ns_list)) = domain_name_db.get_ns_of(queried_domain.to_owned()) {
-        //Check if we are that NS
-        if domain_name_authority == domain_name.to_owned() {
-            let query_types = dns_message.data.query_info.type_of_value.clone();
+        .any(|(dn, _)| queried_domain.is_subdomain_of(dn));
+    if is_parent_cached {
+        //Parent Domain is in our database
 
-            let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
+        //Find the database for the highest level parent domain
+        let (parent_domain_name, parent_db) = database_map
+            .iter()
+            .clone()
+            .filter(|(dn, _domain_db)| queried_domain.is_subdomain_of(dn.to_owned()))
+            .max_by(|(domain_name1, _domain_db1), (domain_name2, _domain_db2)| {
+                domain_name1.to_string().cmp(&domain_name2.to_string())
+            })
+            .unwrap();
+        // Get the type of query being made
+        let query_type = dns_message.data.query_info.type_of_value.clone();
 
-            for query_type in query_types.into_iter() {
-                let response = match query_type {
-                    QueryType::A => match domain_name_db.get_a_records() {
-                        Some(records) => Some(
-                            records
-                                .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
-                                .map(|entry| entry.to_owned())
-                                .collect::<Vec<DNSEntry>>(),
-                        ),
-                        None => None,
-                    },
-                    QueryType::NS => {
-                        let records = domain_name_db.get_ns_records();
-                        Some(
-                            records
-                                .values()
-                                .map(|entry| entry.to_owned())
-                                // .map(|entry| entry.to_owned())
-                                .flatten()
-                                .collect(),
-                        )
-                    }
-                    QueryType::MX => match domain_name_db.get_mx_records() {
-                        Some(records) => Some(
-                            records
-                                .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
-                                .map(|entry| entry.to_owned())
-                                .collect::<Vec<DNSEntry>>(),
-                        ),
-                        None => None,
-                    },
-                    QueryType::CNAME => match domain_name_db.get_cname_records() {
-                        Some(records) => Some(
-                            records
-                                .into_iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
-                                .map(|entry| entry.to_owned())
-                                .collect::<Vec<DNSEntry>>(),
-                        ),
-                        None => None,
-                    },
-                    QueryType::PTR => match domain_name_db.get_ptr_records() {
-                        Some(records) => Some(
-                            records
-                                .iter()
-                                .filter(|entry| entry.domain_name == queried_domain)
-                                .map(|entry| entry.to_owned())
-                                .collect::<Vec<DNSEntry>>(),
-                        ),
-                        None => None,
-                    },
-                };
-                println!("Got values from DB");
-                let mut response_vec = Vec::new();
+        // Check if we have an answer for the queried domain in our parent domain's database
+        let response_vec = parent_db.get_domain_query(query_type, queried_domain.to_owned());
 
-                match response {
-                    Some(res) => {
-                        for entry in res {
-                            response_vec.push(entry);
-                        }
-                        response_map.insert(query_type, response_vec);
-                    }
-                    None => {
-                        println!(
-                            "No entries found for requested type {}",
-                            query_type.get_string()
-                        )
-                    }
-                }
-            }
+        let parent_db_has_answer = response_vec.is_some();
 
-            dns_message.header.response_code = match response_map.len() {
-                0 => Some(2),
-                _ => {
-                    dns_message.data.response_values = Some(response_map.to_owned());
-                    dns_message.header.number_of_values = match response_map
-                        .values()
-                        .flatten()
-                        .collect::<Vec<_>>()
-                        .len()
-                        .try_into()
-                    {
-                        Ok(num) => Some(num),
-                        Err(err) => panic!("{err}"),
-                    };
-                    Some(0)
-                }
+        // Check if we are the parent domain's authority
+        let am_parent_authority = parent_db.am_i_authority();
+
+        // Set the authority flag on the response message
+        dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
+
+        if parent_db_has_answer {
+            // We have an answer in our DB, so set the response values and update the number of
+            // values
+            dns_message.data.response_values = response_vec.to_owned();
+            dns_message.header.number_of_values = match response_vec {
+                Some(vec) => Some(vec.len().try_into().unwrap()),
+                None => panic!("Response purged from database mid query"),
             };
-            dns_message.header.flags = 1;
-        } else {
-            dns_message.header.response_code = Some(1);
-        }
-        let mut authorities_values = Vec::new();
-        for entry in authority_ns_list.iter().map(|entry| entry.to_owned()) {
-            authorities_values.push(entry)
-        }
-        dns_message.data.authorities_values = Some(authorities_values.to_owned());
-        dns_message.header.number_of_authorities = match authorities_values.len().try_into() {
-            Ok(num) => Some(num),
-            Err(err) => panic!("{err}"),
-        };
+            dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
 
+            // Add all authority values for the parent domain
+            dns_message.data.authorities_values =
+                parent_db.ns_records.get(parent_domain_name).cloned();
+            dns_message.header.number_of_authorities = match dns_message.data.authorities_values {
+                Some(ref vec) => Some(vec.len().try_into().unwrap()),
+                None => None,
+            };
+            dns_message.header.response_code = Some(0);
+        } else {
+            // We don't have an answer in our DB
+
+            //Check if any of the parents domain subdomains can know/be the authority of the queried domain
+            let queried_domain_ns = parent_db.get_ns_of(queried_domain);
+            let lower_authority_exists = match queried_domain_ns {
+                //Check if the value returned is ourselves (in which case we act as if the query
+                //value does not exist)
+                Some(ref ns_vec) => {
+                    !ns_vec.is_empty()
+                        && ns_vec
+                            .iter()
+                            .all(|ns| ns.domain_name != parent_domain_name.to_owned())
+                }
+                None => false,
+            };
+
+
+            if lower_authority_exists {
+                //Reply back to user with authorities_values and extra_values
+                dns_message.data.authorities_values = queried_domain_ns.to_owned();
+                dns_message.header.number_of_authorities = match dns_message.data.authorities_values
+                {
+                    Some(ref vec) => Some(vec.len().try_into().unwrap()),
+                    None => None,
+                };
+            dns_message.header.response_code = Some(1);
+            } else {
+                //Here we call de SR module
+                //Dont forget response code
+            }
+        }
+
+        // If we are the authority, set the authority flag on the response message
+        // Otherwise, clear the authority flag
+        dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
+
+        //Translate all values to IPs and add it to extra values
+
+        //Get all A records
         let mut extra_values = Vec::new();
-        let a_records = match domain_name_db.get_a_records() {
+        let a_records = match parent_db.get_a_records() {
             Some(records) => records,
             None => panic!("No A records found, cannot get IP of an NS entry"),
         };
 
-        let non_extra_values = match dns_message.data.response_values {
-            Some(ref values) => {
-                let mut all_vals = values
-                    .values()
-                    .map(|val| val.to_owned())
-                    .flatten()
-                    .collect::<Vec<DNSEntry>>();
-                all_vals.append(&mut authorities_values.clone());
-                all_vals
-            }
-            None => authorities_values.clone(),
+        //Get all response values
+        let mut response_vals = match dns_message.data.response_values {
+            Some(ref values) => values.to_owned(),
+            None => Vec::new(),
+        };
+        //Get all authorities_values
+        let auth_vals = &match dns_message.data.authorities_values {
+            Some(ref values) => values.clone(),
+            None => Vec::new(),
         };
 
-        for entry in non_extra_values {
+        //List of all values to translate
+        let to_translate = {
+            let mut auth_copy = auth_vals.to_owned();
+            let mut no_a_records = response_vals.into_iter().filter(|entry| entry.type_of_value != "A").to_owned().collect::<Vec<DNSEntry>>();
+            no_a_records.append(&mut auth_copy);
+            no_a_records
+        };
+
+        //Translate all values
+        for entry in to_translate {
             let a_record: DNSEntry;
-            if let Some(record) = a_records.iter().find(|a_entry| a_entry.domain_name == Domain::new(entry.value.to_string())) {
+            if let Some(record) = a_records
+                .iter()
+                .find(|a_entry| a_entry.domain_name == Domain::new(entry.value.to_string()))
+            {
                 a_record = record.to_owned();
                 extra_values.push(DNSEntry {
                     domain_name: a_record.domain_name,
@@ -344,15 +322,16 @@ fn client_handler(
                 println!("No translate found. need to fix this part of the code");
             };
         }
+        //Add translated values to extra_values field in response message
         dns_message.data.extra_values = Some(extra_values.to_owned());
         dns_message.header.number_of_extra_values = match extra_values.len().try_into() {
             Ok(num) => Some(num),
-            Err(err) => panic!("{err}"),
+            Err(err) => None,
         };
     } else {
-        println!("Entered Else");
-        //FAZER RESOLVE DEPENDENDO DOS CAMPOS DD
-    }
+        //Parent domain is not cached
+        //Call SR here
+    };
 
     let addr = src_addr.ip();
     let port = src_addr.port();

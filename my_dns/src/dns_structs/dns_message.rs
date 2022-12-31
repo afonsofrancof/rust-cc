@@ -22,7 +22,7 @@ pub struct DNSMessageHeaders {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessageData {
     pub query_info: DNSQueryInfo,
-    pub response_values: Option<HashMap<QueryType, Vec<DNSEntry>>>,
+    pub response_values: Option<Vec<DNSEntry>>,
     pub authorities_values: Option<Vec<DNSEntry>>,
     pub extra_values: Option<Vec<DNSEntry>>,
 }
@@ -30,7 +30,7 @@ pub struct DNSMessageData {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct DNSQueryInfo {
     pub name: Domain,
-    pub type_of_value: Vec<QueryType>,
+    pub type_of_value: QueryType,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
@@ -43,7 +43,7 @@ pub struct DNSEntry {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub enum  QueryType {
+pub enum QueryType {
     NS,
     A,
     CNAME,
@@ -150,7 +150,7 @@ impl DNSMessageData {
 
         let rv = match &self.response_values {
             Some(hm) => {
-                let vec_str: Vec<String> = hm.values().flatten().map(|x| x.get_string()).collect();
+                let vec_str: Vec<String> = hm.iter().map(|x| x.get_string()).collect();
                 let mut sb: String = String::new();
                 for mut entry in vec_str {
                     entry.push_str(",\n");
@@ -200,12 +200,12 @@ impl DNSQueryInfo {
     pub fn new() -> Self {
         DNSQueryInfo {
             name: Domain::new_empty(),
-            type_of_value: vec![],
+            type_of_value: QueryType::A,
         }
     }
 
     pub fn get_string(&self) -> String {
-        let tov: String = self.type_of_value.iter().map(|x| x.get_string()).collect();
+        let tov: String = self.type_of_value.get_str().to_string();
         format!("{},{}",self.name.to_string(), tov)
     }
 }
@@ -237,7 +237,7 @@ impl DNSEntry {
 }
 
 impl QueryType {
-    pub fn get_string(&self) -> &'static str {
+    pub fn get_str(&self) -> &'static str {
         match self {
             QueryType::NS => "NS",
             QueryType::A => "A",

@@ -5,6 +5,7 @@ use std::{collections::HashMap, ops::Add};
 
 #[derive(Clone)]
 pub struct DomainDatabase {
+    pub authority: bool,
     pub soa_entries: SOA,
     pub ns_records: HashMap<Domain, Vec<DNSEntry>>,
     pub a_records: Option<Vec<DNSEntry>>,
@@ -26,6 +27,7 @@ pub struct SOA {
 impl DomainDatabase {
     pub fn new() -> Self {
         DomainDatabase {
+            authority: false,
             soa_entries: SOA::new(),
             ns_records: HashMap::new(),
             a_records: None,
@@ -35,11 +37,15 @@ impl DomainDatabase {
         }
     }
 
+    pub fn am_i_authority(&self) -> bool {
+        self.authority
+    }
+
     pub fn get_soa_records(&self) -> SOA {
         self.soa_entries.to_owned()
     }
 
-    pub fn get_ns_of(&self, domain: Domain) -> Option<(Domain, Vec<DNSEntry>)> {
+    pub fn get_ns_of(&self, domain: Domain) -> Option<Vec<DNSEntry>> {
         let biggest_match = self
             .ns_records
             .iter()
@@ -48,8 +54,10 @@ impl DomainDatabase {
                 let domain1 = Domain::new(domain_name.to_string());
                 domain.is_subdomain_of(&domain1)
             })
-            .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| dn1.to_string().len().cmp(&dn2.to_string().len()))
-            .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned()));
+            .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| {
+                dn1.to_string().len().cmp(&dn2.to_string().len())
+            })
+            .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned())).unzip().1;
         biggest_match
     }
 
@@ -124,6 +132,68 @@ impl DomainDatabase {
             }
         }
     }
+
+    pub fn get_domain_query(
+        &self,
+        query_type: QueryType,
+        queried_domain: Domain,
+    ) -> Option<Vec<DNSEntry>> {
+        let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
+
+        match query_type {
+            QueryType::A => match self.get_a_records() {
+                Some(records) => Some(
+                    records
+                        .iter()
+                        .filter(|entry| entry.domain_name == queried_domain)
+                        .map(|entry| entry.to_owned())
+                        .collect::<Vec<DNSEntry>>(),
+                ),
+                None => None,
+            },
+            QueryType::NS => {
+                let records = self.get_ns_records();
+                Some(
+                    records
+                        .values()
+                        .map(|entry| entry.to_owned())
+                        // .map(|entry| entry.to_owned())
+                        .flatten()
+                        .collect(),
+                )
+            }
+            QueryType::MX => match self.get_mx_records() {
+                Some(records) => Some(
+                    records
+                        .iter()
+                        .filter(|entry| entry.domain_name == queried_domain)
+                        .map(|entry| entry.to_owned())
+                        .collect::<Vec<DNSEntry>>(),
+                ),
+                None => None,
+            },
+            QueryType::CNAME => match self.get_cname_records() {
+                Some(records) => Some(
+                    records
+                        .into_iter()
+                        .filter(|entry| entry.domain_name == queried_domain)
+                        .map(|entry| entry.to_owned())
+                        .collect::<Vec<DNSEntry>>(),
+                ),
+                None => None,
+            },
+            QueryType::PTR => match self.get_ptr_records() {
+                Some(records) => Some(
+                    records
+                        .iter()
+                        .filter(|entry| entry.domain_name == queried_domain)
+                        .map(|entry| entry.to_owned())
+                        .collect::<Vec<DNSEntry>>(),
+                ),
+                None => None,
+            },
+        }
+    }
 }
 
 impl SOA {
@@ -165,29 +235,28 @@ impl SOA {
     pub fn get_serial_value(&self) -> u32 {
         match self.serial.get_value().parse::<u32>() {
             Ok(serial) => serial,
-            Err(_) => 0
+            Err(_) => 0,
         }
     }
 
     pub fn get_refresh_value(&self) -> u64 {
         match self.refresh.get_value().parse::<u64>() {
             Ok(refresh) => refresh,
-            Err(_) => 0
+            Err(_) => 0,
         }
     }
 
     pub fn get_retry_value(&self) -> u64 {
         match self.retry.get_value().parse::<u64>() {
             Ok(retry) => retry,
-            Err(_) => 0
+            Err(_) => 0,
         }
     }
 
     pub fn get_expire_value(&self) -> u64 {
         match self.expire.get_value().parse::<u64>() {
             Ok(expire) => expire,
-            Err(_) => 0
+            Err(_) => 0,
         }
     }
-
 }
