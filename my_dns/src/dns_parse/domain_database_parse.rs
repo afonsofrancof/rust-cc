@@ -2,6 +2,7 @@ use crate::dns_structs::dns_domain_name::Domain;
 use crate::dns_structs::dns_message::{DNSEntry, QueryType};
 use crate::dns_structs::domain_database_struct::DomainDatabase;
 use core::panic;
+use std::net::SocketAddr;
 use log::{debug, error, info, warn};
 use regex::Regex;
 use std::collections::HashMap;
@@ -159,4 +160,34 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
 
     domain_database.authority = true; 
     Ok(domain_database)
+}
+
+
+pub fn parse_root_servers(root_servers_path: String) -> Result<Vec<SocketAddr>, std::io::Error> {
+    let mut file = match File::open(root_servers_path.to_owned()) {
+        Ok(file) => file,
+        Err(err) => {
+            return Err(err);
+        }
+    };
+    // String em memoria com o ficheiro para dar parse
+    let mut read = String::new();
+
+    match file.read_to_string(&mut read) {
+        Ok(_) => {}
+        Err(err) => {
+            return Err(err);
+        }
+    };
+
+    let root_vec: Vec<SocketAddr> = Vec::new();
+
+    for root in read.split('\n') {
+        let root_ip: SocketAddr = match root.parse() {
+            Ok(ip) => ip,
+            Err(err) => panic!("Malformed root server IP at {}", root_servers_path),
+        };
+        root_vec.push(root_ip);
+    }
+    Ok(root_vec)
 }

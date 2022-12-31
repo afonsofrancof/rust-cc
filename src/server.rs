@@ -10,7 +10,7 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-    dns_components::{sp::db_sync_listener, ss::db_sync},
+    dns_components::{sp::db_sync_listener, sr, ss::db_sync},
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
 use my_dns::{
@@ -54,6 +54,10 @@ pub fn main() {
                 .short('t')
                 .long("timeout")
                 .help("The timeout in milliseconds to wait for query responses"),
+            Arg::new("supports_recursive")
+                .short('r')
+                .action(ArgAction::SetTrue)
+                .help("The flag to define if the server supports recursive queries"),
             Arg::new("debug")
                 .short('b')
                 .action(ArgAction::SetTrue)
@@ -79,6 +83,9 @@ pub fn main() {
         },
         None => DEFAULT_TIMEOUT,
     };
+
+    let supports_recursive = arguments.get_flag("supports_recursive");
+
     let debug_mode: bool = arguments.get_flag("debug");
 
     // parsing da config
@@ -93,7 +100,7 @@ pub fn main() {
     let all_log_path = config.get_all_log();
     handle.set_config(create_logger_config(all_log_path, debug_mode));
 
-    start_server(config, port, false);
+    start_server(config, port, supports_recursive, false);
 }
 
 fn create_logger_config(log_path: String, debug: bool) -> log4rs::Config {
@@ -165,7 +172,7 @@ fn create_logger() -> log4rs::Handle {
     return handle;
 }
 
-pub fn start_server(config: ServerConfig, port: u16, once: bool) {
+pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, once: bool) {
     //Global variables
     let mut database: HashMap<Domain, DomainDatabase>;
     let domain_configs: HashMap<Domain, DomainConfig>;
@@ -222,7 +229,14 @@ pub fn start_server(config: ServerConfig, port: u16, once: bool) {
         let new_db = mutable_db.clone();
         let config_clone = config.to_owned();
         let _handler = thread::spawn(move || {
-            client_handler(buf.to_vec(), num_of_bytes, src_addr, config_clone, new_db)
+            client_handler(
+                buf.to_vec(),
+                num_of_bytes,
+                src_addr,
+                config_clone,
+                supports_recursive,
+                new_db,
+            )
         });
         if once {
             break;
@@ -235,6 +249,7 @@ fn client_handler(
     num_of_bytes: usize,
     src_addr: SocketAddr,
     config: ServerConfig,
+    supports_recursive: bool,
     database_mutex: Arc<Mutex<HashMap<Domain, DomainDatabase>>>,
 ) {
     let mut dns_message: DNSMessage = match bincode::deserialize::<DNSMessage>(&buf) {
@@ -251,6 +266,13 @@ fn client_handler(
     }
 
     info!("QR {} {}", src_addr.ip(), dns_message.get_string());
+
+    //Get list of root servers
+    let root_servers_path: String = config.get_st_db();
+    let root_servers: Vec<SocketAddr> = match parse_root_servers(root_servers_path) {
+        Ok(roots) => roots,
+        Err(err) => panic!("{err}"),
+    };
 
     // Acquire a lock on the database
     let database_map = database_mutex.lock().unwrap();
@@ -294,7 +316,6 @@ fn client_handler(
                 Some(vec) => Some(vec.len().try_into().unwrap()),
                 None => panic!("Response purged from database mid query"),
             };
-            dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
 
             // Add all authority values for the parent domain
             dns_message.data.authorities_values =
@@ -303,15 +324,18 @@ fn client_handler(
                 Some(ref vec) => Some(vec.len().try_into().unwrap()),
                 None => None,
             };
+            //Set flags and response code
             dns_message.header.response_code = Some(0);
         } else {
             // We don't have an answer in our DB
 
-            //Check if any of the parents domain subdomains can know/be the authority of the queried domain
+            //Check if any of the parents domain subdomains can be/know the authority of the queried domain
+            //The returned value is the lowest possible parent domain. It can be ourselves.
             let queried_domain_ns = parent_db.get_ns_of(queried_domain);
+
+            //Check if the value returned is ourselves
+            //If it is ourselves, then the query values doesn't exist.
             let lower_authority_exists = match queried_domain_ns {
-                //Check if the value returned is ourselves (in which case we act as if the query
-                //value does not exist)
                 Some(ref ns_vec) => {
                     !ns_vec.is_empty()
                         && ns_vec
@@ -321,18 +345,88 @@ fn client_handler(
                 None => false,
             };
 
+            //Reply back to user with authorities_values and extra_values
+            dns_message.data.authorities_values = queried_domain_ns.to_owned();
+            dns_message.header.number_of_authorities = match dns_message.data.authorities_values {
+                Some(ref vec) => Some(vec.len().try_into().unwrap()),
+                None => None,
+            };
+
             if lower_authority_exists {
-                //Reply back to user with authorities_values and extra_values
-                dns_message.data.authorities_values = queried_domain_ns.to_owned();
-                dns_message.header.number_of_authorities = match dns_message.data.authorities_values
-                {
-                    Some(ref vec) => Some(vec.len().try_into().unwrap()),
-                    None => None,
-                };
+                //This means that we don't know if the entry exists on some other authority lower
+                //than us. In this case, we set the response_code to 1.
+
                 dns_message.header.response_code = Some(1);
+                //Check if the query received is recursive and if so get the answer with the SR;
+                //Call SR with serverlist IP being the auth values.
+                if (dns_message.header.flags == 6) {
+                    //Recursive
+                    //Call SR
+                    let ip_vec = Vec::new();
+                    let mut new_ip;
+                    for val in queried_domain_ns.unwrap(){
+                        // Verificar se o valor do servidor de autoridade é um IP ou um nome
+                        if !val.value.chars().all(|c| {
+                            vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
+                        }) {
+                            // Procurar o IP do servidor de autoridade na lista de valores extra
+                            new_ip = match parent_db.get_a_records() {
+                                // Procurar na lista de valores extra o IP do servidor de autoridade
+                                Some(ref extra_values) => {
+                                    match extra_values.iter().clone().find(|extra| {
+                                        extra.domain_name == Domain::new(val.value.to_string())
+                                    }) {
+                                        Some(ns) => ns.value.to_owned(),
+                                        None => continue,
+                                    }
+                                }
+                                // Nao foi encontrado nenhum valor extra
+                                None => "No A records found to translate".to_string(),
+                            };
+                        } else {
+                            new_ip = val.value.to_owned();
+                        }
+                        let addr_vec = new_ip.split(':').collect::<Vec<_>>();
+                        let new_ip_address = match addr_vec.len() {
+                            // Formar novo IP com o IP do servidor de autoridade e a porta 5353
+                            1 => addr_vec[0].to_string().add(":").add("5353"),
+                            // Formar novo IP com o IP obtido dos extra values e a porta recebida
+                            2 => new_ip,
+                            // Nao foi encontrado um IP valido
+                            _ => {
+                                error!(
+                                    "SP 127.0.0.1 received-malformed-ip: {}",
+                                    val.domain_name.to_string()
+                                );
+                                panic!("Malformed IP on {}", val.domain_name.to_string());
+                            }
+                        };
+                        ip_vec.push(new_ip_address.parse().unwrap());
+                    }
+                    let dns_response = sr::start_sr(dns_message, ip_vec, supports_recursive);
+                    //Return
+                }
             } else {
-                //Here we call de SR module
-                //Dont forget response code
+                //Here we know that no lower authority exists, and if we don't have the value on
+                //our cache, that means that it doesn't exist. We know that because we are the
+                //authority.
+                if am_parent_authority {
+                    dns_message.header.response_code = Some(2);
+                } else {
+                    dns_message.data.authorities_values = Some(vec![DNSEntry {
+                        domain_name: Domain::new(".".to_string()),
+                        type_of_value: QueryType::NS,
+                        value: root_servers[0],
+                        ttl: 86400,
+                        priority: None,
+                    }]);
+                    dns_message.header.number_of_authorities =
+                        match dns_message.data.authorities_values {
+                            Some(ref vec) => Some(vec.len().try_into().unwrap()),
+                            None => None,
+                        };
+                    dns_message.header.response_code = Some(1);
+                }
             }
         }
 
@@ -399,7 +493,9 @@ fn client_handler(
         };
     } else {
         //Parent domain is not cached
-        //Call SR here
+
+        //Call SR with
+        let dns_recv_message = sr::start_sr(dns_message, root_servers, supports_recursive);
     };
 
     let addr = src_addr.ip();
