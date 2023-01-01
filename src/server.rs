@@ -10,8 +10,13 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-    dns_components::{sp::db_sync_listener, sr, ss::db_sync},
-    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
+    dns_components::{
+        sp::db_sync_listener,
+        sr::{self, start_sr},
+        ss::db_sync,
+    },
+    dns_parse::domain_database_parse::parse_root_servers,
+    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig, dns_message},
 };
 use my_dns::{
     dns_make::dns_send,
@@ -359,12 +364,12 @@ fn client_handler(
                 dns_message.header.response_code = Some(1);
                 //Check if the query received is recursive and if so get the answer with the SR;
                 //Call SR with serverlist IP being the auth values.
-                if (dns_message.header.flags == 6) {
+                if dns_message.header.flags == 6 {
                     //Recursive
                     //Call SR
-                    let ip_vec = Vec::new();
+                    let mut ip_vec = Vec::new();
                     let mut new_ip;
-                    for val in queried_domain_ns.unwrap(){
+                    for val in queried_domain_ns.unwrap() {
                         // Verificar se o valor do servidor de autoridade é um IP ou um nome
                         if !val.value.chars().all(|c| {
                             vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
@@ -403,7 +408,13 @@ fn client_handler(
                         };
                         ip_vec.push(new_ip_address.parse().unwrap());
                     }
-                    let dns_response = sr::start_sr(dns_message, ip_vec, supports_recursive);
+                    let dns_response = match start_sr(&mut dns_message, ip_vec, supports_recursive)
+                    {
+                        Ok(message) => message,
+                        Err(err) => panic!("{err}"),
+                    };
+                    send_answer(dns_response, src_addr);
+                    return;
                     //Return
                 }
             } else {
@@ -415,8 +426,8 @@ fn client_handler(
                 } else {
                     dns_message.data.authorities_values = Some(vec![DNSEntry {
                         domain_name: Domain::new(".".to_string()),
-                        type_of_value: QueryType::NS,
-                        value: root_servers[0],
+                        type_of_value: QueryType::NS.get_str().to_string(),
+                        value: root_servers[0].to_string(),
                         ttl: 86400,
                         priority: None,
                     }]);
@@ -489,17 +500,25 @@ fn client_handler(
         dns_message.data.extra_values = Some(extra_values.to_owned());
         dns_message.header.number_of_extra_values = match extra_values.len().try_into() {
             Ok(num) => Some(num),
-            Err(err) => None,
+            Err(_err) => None,
         };
     } else {
         //Parent domain is not cached
 
         //Call SR with
-        let dns_recv_message = sr::start_sr(dns_message, root_servers, supports_recursive);
+        let dns_recv_message = match start_sr(&mut dns_message, root_servers, supports_recursive) {
+            Ok(message) => message,
+            Err(err) => panic!("{err}"),
+        };
+        dns_message = dns_recv_message;
     };
+    send_answer(dns_message, src_addr);
+    return;
+}
 
-    let addr = src_addr.ip();
-    let port = src_addr.port();
+fn send_answer(dns_message: DNSMessage, destination: SocketAddr) {
+    let addr = destination.ip();
+    let port = destination.port();
     let send_socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => socket,
         Err(_) => {
