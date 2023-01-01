@@ -156,9 +156,9 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
         if let Some(sp_addr) = domain_config.get_domain_sp() {
             let mutable_db_copy = Arc::clone(&mutable_db);
             debug!("EV @ initializing-ss-thread {}", domain_name.to_string());
-            let sp_addr_clone = sp_addr.clone();
+            let dn = domain_name.clone();
             let handler =
-                thread::spawn(move || db_sync(domain_name.to_owned(), sp_addr_clone, mutable_db_copy));
+                thread::spawn(move || db_sync(dn, sp_addr, mutable_db_copy));
             handle_vec.push(handler);
         }
     }
