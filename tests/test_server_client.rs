@@ -8,7 +8,7 @@ use std::{thread, time::Duration, collections::HashMap};
 fn test_client_server() {
     let server = thread::spawn(move || {
         let config = server_config_parse::get("etc/test-example-com.conf".to_string()).unwrap();
-        server::start_server(config, 5454,true)
+        server::start_server(config, 5454,true,true)
     });
     thread::sleep(Duration::new(1, 0));
     let client = thread::spawn(move || {
