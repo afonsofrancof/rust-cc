@@ -1,5 +1,5 @@
 use clap::*;
-use log::{debug, error, info, trace, warn, LevelFilter, Log, SetLoggerError};
+use log::{debug, error, info, LevelFilter};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -12,11 +12,11 @@ use log4rs::{
 use my_dns::{
     dns_components::{
         sp::db_sync_listener,
-        sr::{self, start_sr},
+        sr::start_sr,
         ss::db_sync,
     },
     dns_parse::domain_database_parse::parse_root_servers,
-    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig, dns_message},
+    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
 use my_dns::{
     dns_make::dns_send,
@@ -32,7 +32,8 @@ use std::{
     net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle}, fs::File,
+    thread::{self, JoinHandle},
+    fs::File,
 };
 
 static DEFAULT_PORT: u16 = 5353;
@@ -173,7 +174,7 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
     let mut buf = [0; 1000];
 
     loop {
-        let (num_of_bytes, src_addr) = match socket.recv_from(&mut buf) {
+        let (_, src_addr) = match socket.recv_from(&mut buf) {
             Ok(size_and_addr) => size_and_addr,
             Err(_) => {
                 error!("SP @ udp-socket-receive-fail");
@@ -185,7 +186,6 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
         let _handler = thread::spawn(move || {
             client_handler(
                 buf.to_vec(),
-                num_of_bytes,
                 src_addr,
                 config_clone,
                 supports_recursive,
@@ -200,7 +200,6 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
 
 fn client_handler(
     buf: Vec<u8>,
-    num_of_bytes: usize,
     src_addr: SocketAddr,
     config: ServerConfig,
     supports_recursive: bool,
@@ -461,9 +460,7 @@ fn client_handler(
                     ttl: a_record.ttl,
                     priority: a_record.priority,
                 })
-            } else {
-                println!("No translate found. need to fix this part of the code");
-            };
+            } 
         }
         //Add translated values to extra_values field in response message
         dns_message.data.extra_values = Some(extra_values.to_owned());
