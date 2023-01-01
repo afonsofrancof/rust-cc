@@ -168,7 +168,9 @@ impl DNSMessageData {
                     entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
-                sb.insert(sb.len() - 1, ';');
+                if sb.len() > 0 {
+                    sb.insert(sb.len() - 1, ';')
+                };
                 sb
             }
             None => String::new(),
@@ -183,7 +185,9 @@ impl DNSMessageData {
                     entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
-                sb.insert(sb.len() - 1, ';');
+                if sb.len() > 0 {
+                    sb.insert(sb.len() - 1, ';')
+                };
                 sb
             }
             None => String::new(),

@@ -12,13 +12,13 @@ use std::{
 use log::{error, info, debug};
 
 use crate::{
-    dns_make::{dns_recv, dns_send},
+    dns_make::{dns_recv::{self, RecvError}, dns_send},
     dns_parse::domain_database_parse::parse_root_servers,
     dns_structs::{dns_message::{DNSMessage, self}, server_config::ServerConfig, dns_domain_name::Domain},
 };
 
 pub fn start_sr(
-    dns_query: DNSMessage,
+    dns_query: &mut DNSMessage,
     server_list: Vec<SocketAddr>,
     supports_recursive: bool
 ) -> Result<DNSMessage, &'static str> {
@@ -28,7 +28,7 @@ pub fn start_sr(
     socket.set_write_timeout(Some(Duration::new(1, 0))).unwrap();
     
     if !supports_recursive {dns_query.header.flags -= 2};
-
+    
     for server_ip in server_list {
         let _size_sent = match dns_send::send(dns_query.to_owned(), &socket, server_ip.to_string())
         {
@@ -41,12 +41,12 @@ pub fn start_sr(
         let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
             Ok(response) => response,
             Err(err) => match err {
-                IOError => {
+                RecvError::IOError(_io_error) => {
                     error!("TO {} invalid-socket-address", server_ip.to_owned());
                     //When server doesn't respond back, we go to the next loop iteration
                     continue;
                 }
-                DeserializeError => {
+                RecvError::DeserializeError(_deserialize_error) => {
                     error!("ER pdu-deserialize-fail {}", server_ip.to_owned());
                     panic!("Could not decode received DNSMessage");
                 }
@@ -58,7 +58,7 @@ pub fn start_sr(
             dns_recv_message.get_string()
         );
 
-        match eval_and_respond(&mut dns_query, dns_recv_message, &socket) {
+        match eval_and_respond(dns_query, dns_recv_message, &socket) {
             Ok(msg) => {
                 info!(
                     "RR {} dns-msg-received: {}",
@@ -74,9 +74,7 @@ pub fn start_sr(
             }
         }
     }
-    if server_list.is_empty() {
-        return Err("Server list is empty");
-    }
+    return Err("Empty server list passed to SR");
 }
 
 fn eval_and_respond(
@@ -163,8 +161,8 @@ fn eval_and_respond(
                                 response
                             }
                             Err(err) => match err {
-                                IOError => continue,
-                                DeserializeError => {
+                                RecvError::IOError(_io_error) => continue,
+                                RecvError::DeserializeError(_deserialize_error) => {
                                     error!("ER pdu-deserialize-fail {}", new_ip_address.to_owned());
                                     panic!("Could not deserialize received message")
                                 }

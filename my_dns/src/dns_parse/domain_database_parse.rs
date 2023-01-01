@@ -172,7 +172,7 @@ pub fn parse_root_servers(root_servers_path: String) -> Result<Vec<SocketAddr>, 
     };
     // String em memoria com o ficheiro para dar parse
     let mut read = String::new();
-
+    
     match file.read_to_string(&mut read) {
         Ok(_) => {}
         Err(err) => {
@@ -180,12 +180,12 @@ pub fn parse_root_servers(root_servers_path: String) -> Result<Vec<SocketAddr>, 
         }
     };
 
-    let root_vec: Vec<SocketAddr> = Vec::new();
+    let mut root_vec: Vec<SocketAddr> = Vec::new();
 
-    for root in read.split('\n') {
+    for root in read.lines() {
         let root_ip: SocketAddr = match root.parse() {
             Ok(ip) => ip,
-            Err(err) => panic!("Malformed root server IP at {}", root_servers_path),
+            Err(_err) => panic!("Malformed root server IP at {}", root_servers_path),
         };
         root_vec.push(root_ip);
     }
