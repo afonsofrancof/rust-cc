@@ -262,9 +262,6 @@ fn client_handler(
         // Check if we are the parent domain's authority
         let am_parent_authority = parent_db.am_i_authority();
 
-        // Set the authority flag on the response message
-        dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
-
         if parent_db_has_answer {
             debug!("EV @ parent-db-has-answer {}", queried_domain.to_string());
             // We have an answer in our DB, so set the response values and update the number of
@@ -306,7 +303,6 @@ fn client_handler(
                 }
                 None => false,
             };
-
             //Reply back to user with authorities_values and extra_values
             dns_message.data.authorities_values = queried_domain_ns.to_owned();
             dns_message.header.number_of_authorities = match dns_message.data.authorities_values {
@@ -325,7 +321,7 @@ fn client_handler(
                 if dns_message.header.flags == 6 {
                     //Recursive
                     //Call SR
-                    let mut ip_vec = Vec::new();
+                    let mut ip_vec: Vec<SocketAddr> = Vec::new();
                     let mut new_ip;
                     for val in queried_domain_ns.unwrap() {
                         // Verificar se o valor do servidor de autoridade é um IP ou um nome
