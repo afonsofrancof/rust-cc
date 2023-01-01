@@ -11,9 +11,9 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::dns_structs::dns_message::{
+use my_dns::{dns_structs::dns_message::{
     DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
-};
+}, dns_components::sr::start_sr};
 use my_dns::{
     dns_make::{dns_recv, dns_send},
     dns_structs::dns_domain_name::Domain,
@@ -141,13 +141,14 @@ pub fn main() {
         Some(ip) => ip.to_string(),
         None => "127.0.0.1:0".to_string(),
     };
-
+    
     start_client(
         Domain::new(domain_name.to_string()),
         query_type,
         flag,
         server_ip,
     );
+
 }
 
 pub fn start_client(
@@ -207,6 +208,7 @@ pub fn start_client(
                 msg.get_string()
             );
             info!("SP 127.0.0.1 received-final-answer");
+            println!("{}",msg.get_string());
             msg
         }
         Err(err) => {

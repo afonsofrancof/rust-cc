@@ -138,9 +138,8 @@ impl DomainDatabase {
         query_type: QueryType,
         queried_domain: Domain,
     ) -> Option<Vec<DNSEntry>> {
-        let mut response_map: HashMap<QueryType, Vec<DNSEntry>> = HashMap::new();
 
-        match query_type {
+        let query_vec = match query_type {
             QueryType::A => match self.get_a_records() {
                 Some(records) => Some(
                     records
@@ -192,6 +191,16 @@ impl DomainDatabase {
                 ),
                 None => None,
             },
+        };
+        match query_vec{
+            Some(vec) => {
+                if vec.is_empty(){
+                    None
+                }else{
+                    Some(vec)
+                }
+            },
+            None => None
         }
     }
 }
