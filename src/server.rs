@@ -12,8 +12,6 @@ use log4rs::{
 use my_dns::{
     dns_components::{sp::db_sync_listener, sr, ss::db_sync},
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
-};
-use my_dns::{
     dns_make::dns_send,
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
@@ -27,7 +25,7 @@ use std::{
     net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle}, fs::File,
 };
 
 static DEFAULT_PORT: u16 = 5353;
@@ -66,7 +64,15 @@ pub fn main() {
         ])
         .get_matches();
 
-    let handle = create_logger();
+    let debug_mode: bool = arguments.get_flag("debug");
+    let mut debug_mode_string = "shy";
+    let mut level = LevelFilter::Info;
+    if debug_mode {
+        level = LevelFilter::Debug;
+        debug_mode_string = "debug"
+    }
+
+    let handle = create_logger(level);
     //test if path exists
     let config_path = arguments.get_one::<String>("config_path").unwrap();
     let port: u16 = match arguments.get_one::<String>("port") {
@@ -86,90 +92,22 @@ pub fn main() {
 
     let supports_recursive = arguments.get_flag("supports_recursive");
 
-    let debug_mode: bool = arguments.get_flag("debug");
-
     // parsing da config
     let config: ServerConfig = match server_config_parse::get(config_path.to_string()) {
         Ok(config) => {
-            info!("ST 127.0.0.1 {} {} {}", port, timeout, debug_mode);
+            info!(
+                "ST 127.0.0.1 {} {} {} supports-recursive {}",
+                port, timeout, debug_mode_string, supports_recursive
+            );
             config
         }
         Err(_err) => panic!("Server config path not found!"),
     };
 
     let all_log_path = config.get_all_log();
-    handle.set_config(create_logger_config(all_log_path, debug_mode));
+    handle.set_config(create_logger_config(all_log_path, level));
 
     start_server(config, port, supports_recursive, false);
-}
-
-fn create_logger_config(log_path: String, debug: bool) -> log4rs::Config {
-    let logging_pattern = PatternEncoder::new(LOG_PATTERN);
-    // Logging
-    let mut level = LevelFilter::Info;
-    if debug {
-        level = LevelFilter::Debug
-    }
-    let file_path = log_path;
-
-    // Build a stderr logger.
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(logging_pattern.to_owned()))
-        .target(Target::Stdout)
-        .build();
-
-    // Logging to log file.
-    let logfile = FileAppender::builder()
-        .encoder(Box::new(logging_pattern))
-        .build(file_path)
-        .unwrap();
-
-    // Log Trace level output to file where trace is the default level
-    // and the programmatically specified level to stderr.
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .appender(
-            Appender::builder()
-                .filter(Box::new(ThresholdFilter::new(level)))
-                .build("stdout", Box::new(stdout)),
-        )
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .appender("stdout")
-                .build(LevelFilter::Trace),
-        )
-        .unwrap();
-    config
-}
-
-fn create_logger() -> log4rs::Handle {
-    let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {m}{n}");
-    // Logging
-    let level = LevelFilter::Debug;
-
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(logging_pattern.to_owned()))
-        .target(Target::Stdout)
-        .build();
-
-    // Log Trace level output to file where trace is the default level
-    // and the programmatically specified level to stderr.
-    let config = Config::builder()
-        .appender(
-            Appender::builder()
-                .filter(Box::new(ThresholdFilter::new(level)))
-                .build("stdout", Box::new(stdout)),
-        )
-        .build(Root::builder().appender("stdout").build(level))
-        .unwrap();
-
-    // Use this to change log levels at runtime.
-    // This means you can change the default log level to trace
-    // if you are trying to debug an issue and need more logs on then turn it off
-    // once you are done.
-    let handle = log4rs::init_config(config).unwrap();
-    return handle;
 }
 
 pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, once: bool) {
@@ -200,6 +138,7 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
     //START SP LISTENER
     let config_clone = config.clone();
     let db_clone = database.clone();
+    debug!("EV @ initalizing-db-sync-listener");
     thread::spawn(move || db_sync_listener(db_clone, config_clone));
 
     let mut handle_vec: Vec<JoinHandle<()>> = Vec::new();
@@ -208,15 +147,19 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
     //Add SS to DB
     for (domain_name, domain_config) in domain_configs.iter() {
         if let Some(sp_addr) = domain_config.get_domain_sp() {
-            let dn = Domain::new(domain_name.to_string());
             let mutable_db_copy = Arc::clone(&mutable_db);
-            let handler = thread::spawn(move || db_sync(dn, sp_addr, mutable_db_copy));
+            debug!("EV @ initializing-ss-thread {}", domain_name.to_string());
+            let handler =
+                thread::spawn(move || db_sync(domain_name.to_owned(), sp_addr, mutable_db_copy));
             handle_vec.push(handler);
         }
     }
     let socket = match UdpSocket::bind(format!("0.0.0.0:{port}",)) {
         Ok(socket) => socket,
-        Err(_) => panic!("Could not bind socket"),
+        Err(_) => {
+            error!("SP @ udp-listen-socket-fail");
+            panic!("Could not bind socket")
+        }
     };
 
     let mut buf = [0; 1000];
@@ -224,7 +167,10 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
     loop {
         let (num_of_bytes, src_addr) = match socket.recv_from(&mut buf) {
             Ok(size_and_addr) => size_and_addr,
-            Err(_) => panic!("Could not receive on socket"),
+            Err(_) => {
+                error!("SP @ udp-socket-receive-fail");
+                panic!("Could not receive on socket")
+            }
         };
         let new_db = mutable_db.clone();
         let config_clone = config.to_owned();
@@ -255,17 +201,17 @@ fn client_handler(
     let mut dns_message: DNSMessage = match bincode::deserialize::<DNSMessage>(&buf) {
         Ok(message) => message,
         Err(_) => {
-            error!("ER {} pdu-deserialize-fail", src_addr.ip());
+            error!("ER pdu-deserialize-fail {}", src_addr.ip());
+            let response = DNSMessage::new();
+            response.header.response_code = Some(3);
+            // enviar dns message com codigo 3 !!!!!!!!
             return;
         }
     };
-    let mut write_log: bool = false;
     let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
-    if let Some(path) = config.get_domain_configs().get(&queried_domain) {
-        write_log = true;
-    }
 
     info!("QR {} {}", src_addr.ip(), dns_message.get_string());
+   
 
     //Get list of root servers
     let root_servers_path: String = config.get_st_db();
@@ -284,7 +230,10 @@ fn client_handler(
 
     if is_parent_cached {
         //Parent Domain is in our database
-
+        debug!(
+            "EV @ parent-domain-is-cached {}",
+            queried_domain.to_string()
+        );
         //Find the database for the highest level parent domain
         let (parent_domain_name, parent_db) = database_map
             .iter()
@@ -309,6 +258,7 @@ fn client_handler(
         dns_message.header.flags = if am_parent_authority { 1 } else { 0 };
 
         if parent_db_has_answer {
+            debug!("EV @ parent-db-has-answer {}", queried_domain.to_string());
             // We have an answer in our DB, so set the response values and update the number of
             // values
             dns_message.data.response_values = response_vec.to_owned();
@@ -327,6 +277,10 @@ fn client_handler(
             //Set flags and response code
             dns_message.header.response_code = Some(0);
         } else {
+            debug!(
+                "EV @ parent-db-doesnt-have-answer {}",
+                queried_domain.to_string()
+            );
             // We don't have an answer in our DB
 
             //Check if any of the parents domain subdomains can be/know the authority of the queried domain
@@ -353,6 +307,7 @@ fn client_handler(
             };
 
             if lower_authority_exists {
+                debug!("EV @ lower-authority-exists {}", queried_domain.to_string());
                 //This means that we don't know if the entry exists on some other authority lower
                 //than us. In this case, we set the response_code to 1.
 
@@ -364,7 +319,7 @@ fn client_handler(
                     //Call SR
                     let ip_vec = Vec::new();
                     let mut new_ip;
-                    for val in queried_domain_ns.unwrap(){
+                    for val in queried_domain_ns.unwrap() {
                         // Verificar se o valor do servidor de autoridade é um IP ou um nome
                         if !val.value.chars().all(|c| {
                             vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
@@ -395,18 +350,28 @@ fn client_handler(
                             // Nao foi encontrado um IP valido
                             _ => {
                                 error!(
-                                    "SP 127.0.0.1 received-malformed-ip: {}",
-                                    val.domain_name.to_string()
+                                    "FL @ malformed-ip {} {}",
+                                    val.domain_name.to_string(),
+                                    queried_domain.to_string()
                                 );
                                 panic!("Malformed IP on {}", val.domain_name.to_string());
                             }
                         };
+                        debug!(
+                            "EV @ ns-ip-found {} {}",
+                            new_ip_address,
+                            queried_domain.to_string()
+                        );
                         ip_vec.push(new_ip_address.parse().unwrap());
                     }
                     let dns_response = sr::start_sr(dns_message, ip_vec, supports_recursive);
                     //Return
                 }
             } else {
+                debug!(
+                    "EV @ lower-authority-doesnt-exist {}",
+                    queried_domain.to_string()
+                );
                 //Here we know that no lower authority exists, and if we don't have the value on
                 //our cache, that means that it doesn't exist. We know that because we are the
                 //authority.
@@ -519,4 +484,68 @@ fn client_handler(
                 return;
             }
         };
+}
+
+fn create_logger_config(log_path: String, level: LevelFilter) -> log4rs::Config {
+    let logging_pattern = PatternEncoder::new(LOG_PATTERN);
+    // Logging
+    let file_path = log_path;
+
+    // Build a stderr logger.
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(logging_pattern.to_owned()))
+        .target(Target::Stdout)
+        .build();
+
+    // Logging to log file.
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(logging_pattern))
+        .build(file_path)
+        .unwrap();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stdout", Box::new(stdout)),
+        )
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stdout")
+                .build(LevelFilter::Trace),
+        )
+        .unwrap();
+    config
+}
+
+fn create_logger(level: LevelFilter) -> log4rs::Handle {
+    let logging_pattern = PatternEncoder::new(LOG_PATTERN);
+
+    // Logging
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(logging_pattern.to_owned()))
+        .target(Target::Stdout)
+        .build();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stdout", Box::new(stdout)),
+        )
+        .build(Root::builder().appender("stdout").build(level))
+        .unwrap();
+
+    // Use this to change log levels at runtime.
+    // This means you can change the default log level to trace
+    // if you are trying to debug an issue and need more logs on then turn it off
+    // once you are done.
+    let handle = log4rs::init_config(config).unwrap();
+    return handle;
 }

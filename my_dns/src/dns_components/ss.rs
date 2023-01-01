@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::{info, debug};
+use log::debug;
 
 use crate::{
     dns_parse::domain_database_parse,
@@ -139,7 +139,7 @@ fn zone_transfer(
 
     match domain_database_parse::parse_from_str(db_txt) {
         Ok(db) => {
-            info!(
+            debug!(
                 "ZT {} SS {} ms {} bytes",
                 sp_addr,
                 now.elapsed().as_millis(),

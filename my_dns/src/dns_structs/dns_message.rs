@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::dns_domain_name::Domain;
 
@@ -39,7 +39,7 @@ pub struct DNSEntry {
     pub type_of_value: String,
     pub value: String,
     pub ttl: u32,
-    pub priority: Option<u16>
+    pub priority: Option<u16>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -78,21 +78,21 @@ impl DNSMessageHeaders {
             number_of_extra_values: None,
         }
     }
-   
+
     // O sistema de flags funciona em binario em que se soma o valor de todas as flags
     // A   => 0 0 1 = 1
     // R   => 0 1 0 = 2
     // Q   => 1 0 0 = 4
     // R+A => 0 1 1 = 3
     // Q+R => 1 1 0 = 6
-    pub fn decode_flags(&self) -> Result<&str,&'static str> {
+    pub fn decode_flags(&self) -> Result<&str, &'static str> {
         match self.flags {
             1 => Ok("A"),
             2 => Ok("R"),
             4 => Ok("Q"),
             3 => Ok("R+A"),
             6 => Ok("Q+R"),
-            _ => Err("Flag value does not match any combination of flags")
+            _ => Err("Flag value does not match any combination of flags"),
         }
     }
 
@@ -115,19 +115,15 @@ impl DNSMessageHeaders {
             noev = i
         };
 
-        let flags = match self.decode_flags(){
+        let flags = match self.decode_flags() {
             Ok(flag) => flag,
-            Err(err) => panic!("{err}")
+            Err(err) => panic!("{err}"),
         };
 
-        format!("{},{},{},{},{},{};",
-                self.message_id,
-                flags,
-                rc,
-                nov,
-                noa,
-                noev
-                )
+        format!(
+            "{},{},{},{},{},{};",
+            self.message_id, flags, rc, nov, noa, noev
+        )
     }
 }
 
@@ -144,7 +140,7 @@ impl DNSMessageData {
 
     pub fn get_string(&self) -> String {
         let mut res = String::new();
-        
+
         res.push_str(self.query_info.get_string().as_str());
 
         let rv = match &self.response_values {
@@ -155,10 +151,12 @@ impl DNSMessageData {
                     entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
-                sb.insert(sb.len() -2, ';'); 
+                if sb.len() > 0 {
+                    sb.insert(sb.len() - 1, ';')
+                };
                 sb
-            },
-            None => String::new()
+            }
+            None => String::new(),
         };
         res.push_str(rv.as_str());
 
@@ -170,10 +168,10 @@ impl DNSMessageData {
                     entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
-                sb.insert(sb.len() -2, ';'); 
+                sb.insert(sb.len() - 1, ';');
                 sb
-            },
-            None => String::new()
+            }
+            None => String::new(),
         };
         res.push_str(av.as_str());
 
@@ -185,13 +183,13 @@ impl DNSMessageData {
                     entry.push_str(",");
                     sb.push_str(entry.as_str());
                 }
-                sb.insert(sb.len() -2, ';'); 
+                sb.insert(sb.len() - 1, ';');
                 sb
-            },
-            None => String::new()
+            }
+            None => String::new(),
         };
         res.push_str(ev.as_str());
-        res 
+        res
     }
 }
 
@@ -205,22 +203,21 @@ impl DNSQueryInfo {
 
     pub fn get_string(&self) -> String {
         let tov: String = self.type_of_value.get_str().to_string();
-        format!("{},{}",self.name.to_string(), tov)
+        format!("{},{}", self.name.to_string(), tov)
     }
 }
 
 impl DNSEntry {
     pub fn new() -> Self {
         DNSEntry {
-            domain_name: Domain::new_empty(), 
-            type_of_value: String::new(), 
-            value: String::new(), 
+            domain_name: Domain::new_empty(),
+            type_of_value: String::new(),
+            value: String::new(),
             ttl: 0,
-            priority: None
+            priority: None,
         }
     }
-    
-    
+
     pub fn get_value(&self) -> String {
         self.value.to_owned()
     }
@@ -228,9 +225,22 @@ impl DNSEntry {
     // falta a priority
     pub fn get_string(&self) -> String {
         if let Some(priority) = self.priority {
-            format!("{} {} {} {} {}",self.domain_name.to_string(),self.type_of_value,self.value,self.ttl, priority)
-        } else{
-            format!("{} {} {} {}",self.domain_name.to_string(),self.type_of_value,self.value,self.ttl)
+            format!(
+                "{} {} {} {} {}",
+                self.domain_name.to_string(),
+                self.type_of_value,
+                self.value,
+                self.ttl,
+                priority
+            )
+        } else {
+            format!(
+                "{} {} {} {}",
+                self.domain_name.to_string(),
+                self.type_of_value,
+                self.value,
+                self.ttl
+            )
         }
     }
 }

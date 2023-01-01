@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use log::{error, info};
+use log::{error, info, debug};
 
 use crate::{
     dns_make::{dns_recv, dns_send},
@@ -47,7 +47,7 @@ pub fn start_sr(
                     continue;
                 }
                 DeserializeError => {
-                    error!("ER {} could-not-decode", server_ip.to_owned());
+                    error!("ER pdu-deserialize-fail {}", server_ip.to_owned());
                     panic!("Could not decode received DNSMessage");
                 }
             },
@@ -89,14 +89,14 @@ fn eval_and_respond(
         match response_code {
             // Codigo 0 => Mensagem de resposta valida
             0 => {
-                info!("EV @ valid-dns-msg-received");
+                debug!("EV @ valid-dns-msg-received");
                 return_message = Ok(dns_recv_message.clone());
             }
             // Codigo 1 =>  domínio existe mas não foi obtida a resposta de um servidor de autoridade
             1 => match dns_recv_message.data.authorities_values {
                 // Existe pelo menos um servidor de autoridade para o dominio na resposta recebida
                 Some(ref auth_values) => {
-                    info!("EV @ non-authoritative-msg-received");
+                    debug!("EV @ non-authoritative-msg-received");
                     let mut new_ip;
                     for val in auth_values {
                         // Verificar se o valor do servidor de autoridade é um IP ou um nome
@@ -129,7 +129,7 @@ fn eval_and_respond(
                             // Nao foi encontrado um IP valido
                             _ => {
                                 error!(
-                                    "SP 127.0.0.1 received-malformed-ip: {}",
+                                    "SP 127.0.0.1 received-malformed-ip {}",
                                     val.domain_name.to_string()
                                 );
                                 panic!("Malformed IP on {}", val.domain_name.to_string());
@@ -165,7 +165,7 @@ fn eval_and_respond(
                             Err(err) => match err {
                                 IOError => continue,
                                 DeserializeError => {
-                                    error!("ER {} could-not-decode", new_ip_address.to_owned());
+                                    error!("ER pdu-deserialize-fail {}", new_ip_address.to_owned());
                                     panic!("Could not deserialize received message")
                                 }
                             },

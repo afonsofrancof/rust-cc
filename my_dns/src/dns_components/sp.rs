@@ -38,11 +38,11 @@ pub fn db_sync_listener(db: HashMap<Domain, DomainDatabase>, config: ServerConfi
                     let new_db = db.clone();
                     thread::spawn(move || db_sync_handler(&mut stream, new_db));
                 } else {
-                    info!("EZ denied-zone-transfer {} SP", incoming_addr.to_string(),);
+                    debug!("EZ denied-zone-transfer {} SP", incoming_addr.to_string(),);
                 }
             }
         } else {
-            info!("EV @ zone-transfer-tcp-fail");
+            debug!("EV @ zone-transfer-tcp-fail");
         }
     }
 }
