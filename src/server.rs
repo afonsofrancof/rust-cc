@@ -10,10 +10,6 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-<<<<<<< HEAD
-    dns_components::{sp::db_sync_listener, sr, ss::db_sync},
-    dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
-=======
     dns_components::{
         sp::db_sync_listener,
         sr::{self, start_sr},
@@ -23,7 +19,6 @@ use my_dns::{
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig, dns_message},
 };
 use my_dns::{
->>>>>>> 5f86b8066d90b91f4d17e24114602b17de9d90a1
     dns_make::dns_send,
     dns_parse::{domain_database_parse, server_config_parse},
     dns_structs::{
@@ -132,14 +127,14 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
     domain_configs = config.get_domain_configs();
 
     //Add SP's to DB
-    for (domain_name, domain_config) in domain_configs.iter() {
+    for (domain_name, domain_config) in domain_configs.clone().iter() {
         if let Some(db) = domain_config.get_domain_db() {
             match domain_database_parse::get(db.to_owned()) {
                 Ok(db_parsed) => {
                     info!("EV @ db-file-read {}", db);
                     database.insert(Domain::new(domain_name.to_string()), db_parsed);
                 }
-                Err(err) => {
+                Err(_err) => {
                     error!("SP @ db-file-read-fail {}", domain_name.to_string());
                     return;
                 }
@@ -161,8 +156,9 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
         if let Some(sp_addr) = domain_config.get_domain_sp() {
             let mutable_db_copy = Arc::clone(&mutable_db);
             debug!("EV @ initializing-ss-thread {}", domain_name.to_string());
+            let sp_addr_clone = sp_addr.clone();
             let handler =
-                thread::spawn(move || db_sync(domain_name.to_owned(), sp_addr, mutable_db_copy));
+                thread::spawn(move || db_sync(domain_name.to_owned(), sp_addr_clone, mutable_db_copy));
             handle_vec.push(handler);
         }
     }
@@ -185,7 +181,7 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
             }
         };
         let new_db = mutable_db.clone();
-        let config_clone = config.to_owned();
+        let config_clone = config.clone();
         let _handler = thread::spawn(move || {
             client_handler(
                 buf.to_vec(),
@@ -214,9 +210,10 @@ fn client_handler(
         Ok(message) => message,
         Err(_) => {
             error!("ER pdu-deserialize-fail {}", src_addr.ip());
-            let response = DNSMessage::new();
+            let mut response = DNSMessage::new();
             response.header.response_code = Some(3);
             // enviar dns message com codigo 3 !!!!!!!!
+            send_answer(response, src_addr);
             return;
         }
     };
@@ -297,7 +294,7 @@ fn client_handler(
 
             //Check if any of the parents domain subdomains can be/know the authority of the queried domain
             //The returned value is the lowest possible parent domain. It can be ourselves.
-            let queried_domain_ns = parent_db.get_ns_of(queried_domain);
+            let queried_domain_ns = parent_db.get_ns_of(queried_domain.to_owned());
 
             //Check if the value returned is ourselves
             //If it is ourselves, then the query values doesn't exist.
@@ -494,7 +491,7 @@ fn send_answer(dns_message: DNSMessage, destination: SocketAddr) {
     let send_socket = match UdpSocket::bind("0.0.0.0:0") {
         Ok(socket) => socket,
         Err(_) => {
-            debug!("EV @ client-handler-socket-fail");
+            debug!("FL @ client-handler-socket-fail");
             return;
         }
     };
@@ -506,7 +503,7 @@ fn send_answer(dns_message: DNSMessage, destination: SocketAddr) {
                 num_bytes
             }
             Err(_err) => {
-                info!("EV @ send-message-fail");
+                debug!("EV @ send-message-fail");
                 return;
             }
         };

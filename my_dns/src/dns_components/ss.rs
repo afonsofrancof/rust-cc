@@ -77,7 +77,7 @@ fn zone_transfer(
 
     let mut stream = match TcpStream::connect(sp_addr) {
         Ok(stream) => stream,
-        Err(err) => {
+        Err(_err) => {
             debug!("EZ {} SS connection-fail",sp_addr);
             return Err(ZoneTransferError::CONERR);
             // panic!("Could't connect to addr {}", sp_addr);
