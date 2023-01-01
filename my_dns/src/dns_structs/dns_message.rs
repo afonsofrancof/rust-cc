@@ -152,7 +152,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.insert(sb.len() - 1, ';')
+                    sb.replace_range(sb.len()-1..sb.len(), ";")
                 };
                 sb
             }
@@ -169,7 +169,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.insert(sb.len() - 1, ';')
+                    sb.replace_range(sb.len()-1..sb.len(), ";")
                 };
                 sb
             }
@@ -186,7 +186,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.insert(sb.len() - 1, ';')
+                    sb.replace_range(sb.len()-1..sb.len(), ";")
                 };
                 sb
             }
@@ -207,7 +207,7 @@ impl DNSQueryInfo {
 
     pub fn get_string(&self) -> String {
         let tov: String = self.type_of_value.get_str().to_string();
-        format!("{},{}", self.name.to_string(), tov)
+        format!("{},{};", self.name.to_string(), tov)
     }
 }
 
