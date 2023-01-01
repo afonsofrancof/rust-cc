@@ -11,6 +11,5 @@ pub fn send(
     let dns_message_serialized = bincode::serialize(&dns_message).unwrap();
     let dns_message_bytes: &[u8] = &dns_message_serialized;
     //Send DNSMessage to the Dns Server
-    println!("IP: {}", remote_addr_and_port);
     socket.send_to(dns_message_bytes, remote_addr_and_port.as_str())
 }
