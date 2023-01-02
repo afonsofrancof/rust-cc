@@ -9,26 +9,37 @@ use std::{
     time::Duration,
 };
 
-use log::{error, info, debug};
+use log::{debug, error, info};
 
 use crate::{
-    dns_make::{dns_recv::{self, RecvError}, dns_send},
+    dns_make::{
+        dns_recv::{self, RecvError},
+        dns_send,
+    },
     dns_parse::domain_database_parse::parse_root_servers,
-    dns_structs::{dns_message::{DNSMessage, self}, server_config::ServerConfig, dns_domain_name::Domain},
+    dns_structs::{
+        dns_domain_name::Domain,
+        dns_message::{self, DNSMessage},
+        server_config::ServerConfig,
+    },
 };
 
 pub fn start_sr(
     dns_query: &mut DNSMessage,
     server_list: Vec<SocketAddr>,
-    supports_recursive: bool
+    supports_recursive: bool,
 ) -> Result<DNSMessage, &'static str> {
     // Inicializar a socket UDP
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
     socket.set_write_timeout(Some(Duration::new(1, 0))).unwrap();
-    
-    if !supports_recursive {dns_query.header.flags -= 2};
-    
+
+    if !supports_recursive {
+        dns_query.header.flags -= 2
+    };
+
+    if server_list.is_empty() { return Err("Empty server list provided") };
+
     for server_ip in server_list {
         let _size_sent = match dns_send::send(dns_query.to_owned(), &socket, server_ip.to_string())
         {
@@ -53,6 +64,7 @@ pub fn start_sr(
             },
         };
 
+
         match eval_and_respond(dns_query, dns_recv_message, &socket) {
             Ok(msg) => {
                 info!(
@@ -69,7 +81,7 @@ pub fn start_sr(
             }
         }
     }
-    return Err("Empty server list passed to SR");
+    return Err("No servers answered your query");
 }
 
 fn eval_and_respond(
@@ -164,7 +176,8 @@ fn eval_and_respond(
                             },
                         };
                         // Recomecar o processo de verificar a resposta
-                        return_message = eval_and_respond(dns_message, dns_recv_message_new, &socket);
+                        return_message =
+                            eval_and_respond(dns_message, dns_recv_message_new, &socket);
                         break;
                     }
                 }

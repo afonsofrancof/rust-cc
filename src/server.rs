@@ -31,7 +31,7 @@ use std::{
     net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
+    thread::{self, JoinHandle}, os::linux::fs, path::Path,
 };
 
 static DEFAULT_PORT: u16 = 5353;
@@ -466,7 +466,10 @@ fn client_handler(
 
         if am_parent_authority {
             if let Some(domain_config) = config.get_domain_configs().get(parent_domain_name) {
-                let mut domain_log_file = File::options().append(true).open(domain_config.get_domain_log()).unwrap();
+                let path = &domain_config.get_domain_log().to_string();
+                let parent_dir = Path::new(path).parent().unwrap();
+                std::fs::create_dir_all(parent_dir).unwrap();
+                let mut domain_log_file = File::options().append(true).create(true).open(path).unwrap();
                 let response_timestamp = format!("{}",Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
                 let query_string = format!("[{}] QR {} {}\n",queried_timestamp,src_addr,queried_message_string);
                 let response_string = format!("[{}] RP {} {}\n",response_timestamp,src_addr,queried_message_string);
