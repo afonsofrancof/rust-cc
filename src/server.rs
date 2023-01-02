@@ -1,5 +1,6 @@
 use clap::*;
 use log::{debug, error, info, LevelFilter};
+use chrono::{DateTime,Utc};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -10,11 +11,7 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-    dns_components::{
-        sp::db_sync_listener,
-        sr::start_sr,
-        ss::db_sync,
-    },
+    dns_components::{sp::db_sync_listener, sr::start_sr, ss::db_sync},
     dns_parse::domain_database_parse::parse_root_servers,
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
@@ -29,11 +26,12 @@ use my_dns::{
 };
 use std::{
     collections::HashMap,
+    fs::File,
+    io::Write,
     net::{SocketAddr, UdpSocket},
     ops::Add,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
-    fs::File,
 };
 
 static DEFAULT_PORT: u16 = 5353;
@@ -158,8 +156,7 @@ pub fn start_server(config: ServerConfig, port: u16, supports_recursive: bool, o
             let mutable_db_copy = Arc::clone(&mutable_db);
             debug!("EV @ initializing-ss-thread {}", domain_name.to_string());
             let dn = domain_name.clone();
-            let handler =
-                thread::spawn(move || db_sync(dn, sp_addr, mutable_db_copy));
+            let handler = thread::spawn(move || db_sync(dn, sp_addr, mutable_db_copy));
             handle_vec.push(handler);
         }
     }
@@ -216,10 +213,12 @@ fn client_handler(
             return;
         }
     };
-    let mut queried_domain: Domain = dns_message.data.query_info.name.to_owned();
+
+    let queried_timestamp = format!("{}",Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
+    let queried_message_string = dns_message.get_string();
+    let queried_domain: Domain = dns_message.data.query_info.name.to_owned();
 
     info!("QR {} {}", src_addr.ip(), dns_message.get_string());
-   
 
     //Get list of root servers
     let root_servers_path: String = config.get_st_db();
@@ -456,7 +455,7 @@ fn client_handler(
                     ttl: a_record.ttl,
                     priority: a_record.priority,
                 })
-            } 
+            }
         }
         //Add translated values to extra_values field in response message
         dns_message.data.extra_values = Some(extra_values.to_owned());
@@ -464,6 +463,17 @@ fn client_handler(
             Ok(num) => Some(num),
             Err(_err) => None,
         };
+
+        if am_parent_authority {
+            if let Some(domain_config) = config.get_domain_configs().get(parent_domain_name) {
+                let mut domain_log_file = File::options().append(true).open(domain_config.get_domain_log()).unwrap();
+                let response_timestamp = format!("{}",Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
+                let query_string = format!("[{}] QR {} {}\n",queried_timestamp,src_addr,queried_message_string);
+                let response_string = format!("[{}] RP {} {}\n",response_timestamp,src_addr,queried_message_string);
+                domain_log_file.write(query_string.as_bytes()).unwrap();
+                domain_log_file.write(response_string.as_bytes()).unwrap();
+            }
+        }
     } else {
         //Parent domain is not cached
 
@@ -474,6 +484,7 @@ fn client_handler(
         };
         dns_message = dns_recv_message;
     };
+
     send_answer(dns_message, src_addr);
     return;
 }

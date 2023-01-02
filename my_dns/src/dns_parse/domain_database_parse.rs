@@ -129,7 +129,7 @@ pub fn parse_from_str(read: String) -> Result<DomainDatabase, &'static str> {
             let main_domain = match variables.get("@") {
                 Some(value) => value,
                 None => {
-                    debug!("FL @ incorrect-domain-name {}", name);
+                    debug!("FL @ incomplete-domain-name {}", name);
                     return Err(
                         "Non complete domain name found in entry and no @ variable defined",
                     );

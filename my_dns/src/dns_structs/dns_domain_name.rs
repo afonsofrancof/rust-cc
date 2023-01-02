@@ -64,7 +64,9 @@ impl Domain {
         } else {
             // Otherwise, join the parts of the domain with `.` characters and
             // return the resulting string.
-            self.parts.join(".")
+            let mut st = self.parts.join(".");
+            st.push('.');
+            st
         }
     }
 

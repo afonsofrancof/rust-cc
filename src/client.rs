@@ -1,7 +1,7 @@
 #![feature(io_error_more)]
 use clap::*;
 use core::panic;
-use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
+use log::{debug, error, info, LevelFilter};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -57,8 +57,6 @@ pub fn main() {
         ])
         .get_matches();
 
-    // Remover o ficheiro de log anterior, caso exista
-    let _rm = fs::remove_file("logs/client.log");
 
     // Logging
     // Caso o modo debug esteja ativo, o log é escrito para o terminal
@@ -78,7 +76,7 @@ pub fn main() {
 
     let logging_pattern = PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S %Z)(utc)}] {m}{n}");
 
-    let file_path = "logs/client.log";
+    let log_file_path = "logs/client.log";
 
     // Construir o logger para o stdout.
     let stdout = ConsoleAppender::builder()
@@ -89,7 +87,7 @@ pub fn main() {
     // Construir o logger para o ficheiro.
     let logfile = FileAppender::builder()
         .encoder(Box::new(logging_pattern))
-        .build(file_path)
+        .build(log_file_path)
         .unwrap();
 
     // Construir o config para o log4rs.
@@ -111,7 +109,7 @@ pub fn main() {
     // Inicializar o logger.
     let _handle = log4rs::init_config(config).unwrap();
     info!("ST 127.0.0.1 53 TTL {level_filter}");
-    info!("EV @ log-file-create /logs/client.log");
+    debug!("EV @ log-file-create {}",log_file_path);
 
     let domain_name = arguments.get_one::<String>("domain").unwrap();
 
@@ -159,7 +157,7 @@ pub fn start_client(
 ) -> DNSMessage {
     // Construir a mensagem de DNS a ser enviada e dar serialize
     let mut dns_message = query_builder(domain_name, query_type, flag);
-    info!("EV @ dns-msg-created");
+    debug!("EV @ dns-msg-created {}",dns_message.get_string());
 
     // Inicializar a socket UDP
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -169,7 +167,7 @@ pub fn start_client(
     let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, server_ip.to_owned()) {
         Ok(size_sent) => {
             info!(
-                "QE {} dns-msg-sent: {}",
+                "QE {} dns-msg-sent {}",
                 server_ip.to_owned(),
                 dns_message.to_owned().get_string()
             );
@@ -194,25 +192,19 @@ pub fn start_client(
             }
         },
     };
-    info!(
-        "RR {} dns-msg-received: {}",
-        server_ip.to_owned(),
-        dns_recv_message.get_string()
-    );
 
     match receive_client(&mut dns_message, dns_recv_message, &socket) {
         Ok(msg) => {
-            info!(
-                "RR {} dns-msg-received: {}",
-                server_ip.to_owned(),
-                msg.get_string()
-            );
-            info!("SP 127.0.0.1 received-final-answer");
-            println!("{}",msg.get_string());
+            //info!(
+            //    "RR {} dns-msg-received: {}",
+            //    server_ip.to_owned(),
+            //    msg.get_string()
+            //);
+            //info!("SP @ received-final-answer");
             msg
         }
         Err(err) => {
-            error!("SP 127.0.0.1 {}", err);
+            error!("SP @ {}", err);
             panic!("Received Invalid Answer")
         }
     }
@@ -228,14 +220,14 @@ fn receive_client(
         match response_code {
             // Codigo 0 => Mensagem de resposta valida
             0 => {
-                info!("EV @ valid-dns-msg-received");
+                debug!("EV @ valid-dns-msg-received");
                 return_message = Ok(dns_recv_message.clone());
             }
             // Codigo 1 =>  domínio existe mas não foi obtida a resposta de um servidor de autoridade
             1 => match dns_recv_message.data.authorities_values {
                 // Existe pelo menos um servidor de autoridade para o dominio na resposta recebida
                 Some(ref auth_values) => {
-                    info!("EV @ non-authoritative-msg-received");
+                    debug!("EV @ non-authoritative-msg-received");
                     let mut new_ip;
                     for val in auth_values {
                         // Verificar se o valor do servidor de autoridade é um IP ou um nome
@@ -268,7 +260,7 @@ fn receive_client(
                             // Nao foi encontrado um IP valido
                             _ => {
                                 error!(
-                                    "SP 127.0.0.1 received-malformed-ip: {}",
+                                    "SP @ received-malformed-ip {}",
                                     val.domain_name.to_string()
                                 );
                                 panic!("Malformed IP on {}", val.domain_name.to_string());
@@ -295,7 +287,7 @@ fn receive_client(
                         let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
                             Ok(response) => {
                                 info!(
-                                    "RR {} dns-msg-received: {}",
+                                    "RR {} dns-msg-received {}",
                                     new_ip_address.to_owned(),
                                     response.0.get_string()
                                 );
