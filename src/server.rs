@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use clap::*;
 use log::{debug, error, info, LevelFilter};
-use chrono::{DateTime,Utc};
 use log4rs::{
     append::{
         console::{ConsoleAppender, Target},
@@ -30,8 +30,10 @@ use std::{
     io::Write,
     net::{SocketAddr, UdpSocket},
     ops::Add,
+    os::linux::fs,
+    path::Path,
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle}, os::linux::fs, path::Path,
+    thread::{self, JoinHandle},
 };
 
 static DEFAULT_PORT: u16 = 5353;
@@ -214,7 +216,7 @@ fn client_handler(
         }
     };
 
-    let queried_timestamp = format!("{}",Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
+    let queried_timestamp = format!("{}", Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
     let queried_message_string = dns_message.get_string();
     let queried_domain: Domain = dns_message.data.query_info.name.to_owned();
 
@@ -387,19 +389,13 @@ fn client_handler(
                 if am_parent_authority {
                     dns_message.header.response_code = Some(2);
                 } else {
-                    dns_message.data.authorities_values = Some(vec![DNSEntry {
-                        domain_name: Domain::new(".".to_string()),
-                        type_of_value: QueryType::NS.get_str().to_string(),
-                        value: root_servers[0].to_string(),
-                        ttl: 86400,
-                        priority: None,
-                    }]);
-                    dns_message.header.number_of_authorities =
-                        match dns_message.data.authorities_values {
-                            Some(ref vec) => Some(vec.len().try_into().unwrap()),
-                            None => None,
+                    let dns_response =
+                        match start_sr(&mut dns_message, root_servers, supports_recursive) {
+                            Ok(message) => message,
+                            Err(err) => panic!("{err}"),
                         };
-                    dns_message.header.response_code = Some(1);
+                    send_answer(dns_response, src_addr);
+                    return;
                 }
             }
         }
@@ -418,7 +414,7 @@ fn client_handler(
         };
 
         //Get all response values
-        let mut response_vals = match dns_message.data.response_values {
+        let response_vals = match dns_message.data.response_values {
             Some(ref values) => values.to_owned(),
             None => Vec::new(),
         };
@@ -469,18 +465,26 @@ fn client_handler(
                 let path = &domain_config.get_domain_log().to_string();
                 let parent_dir = Path::new(path).parent().unwrap();
                 std::fs::create_dir_all(parent_dir).unwrap();
-                let mut domain_log_file = File::options().append(true).create(true).open(path).unwrap();
-                let response_timestamp = format!("{}",Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
-                let query_string = format!("[{}] QR {} {}\n",queried_timestamp,src_addr,queried_message_string);
-                let response_string = format!("[{}] RP {} {}\n",response_timestamp,src_addr,queried_message_string);
+                let mut domain_log_file = File::options()
+                    .append(true)
+                    .create(true)
+                    .open(path)
+                    .unwrap();
+                let response_timestamp = format!("{}", Utc::now().format("%Y-%m-%d %H:%M:%S %Z"));
+                let query_string = format!(
+                    "[{}] QR {} {}\n",
+                    queried_timestamp, src_addr, queried_message_string
+                );
+                let response_string = format!(
+                    "[{}] RP {} {}\n",
+                    response_timestamp, src_addr, queried_message_string
+                );
                 domain_log_file.write(query_string.as_bytes()).unwrap();
                 domain_log_file.write(response_string.as_bytes()).unwrap();
             }
         }
     } else {
-        //Parent domain is not cached
-
-        //Call SR with
+        //Answer is not cached
         let dns_recv_message = match start_sr(&mut dns_message, root_servers, supports_recursive) {
             Ok(message) => message,
             Err(err) => panic!("{err}"),

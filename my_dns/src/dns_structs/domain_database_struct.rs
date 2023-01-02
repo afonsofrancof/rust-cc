@@ -57,7 +57,9 @@ impl DomainDatabase {
             .max_by(|(dn1, _dnsvec1), (dn2, _dnsvec2)| {
                 dn1.to_string().len().cmp(&dn2.to_string().len())
             })
-            .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned())).unzip().1;
+            .map(|(dn, dnsvec)| (dn.to_owned(), dnsvec.to_owned()))
+            .unzip()
+            .1;
         biggest_match
     }
 
@@ -138,7 +140,6 @@ impl DomainDatabase {
         query_type: QueryType,
         queried_domain: Domain,
     ) -> Option<Vec<DNSEntry>> {
-
         let query_vec = match query_type {
             QueryType::A => match self.get_a_records() {
                 Some(records) => Some(
@@ -152,14 +153,10 @@ impl DomainDatabase {
             },
             QueryType::NS => {
                 let records = self.get_ns_records();
-                Some(
-                    records
-                        .values()
-                        .map(|entry| entry.to_owned())
-                        // .map(|entry| entry.to_owned())
-                        .flatten()
-                        .collect(),
-                )
+                match records.get(&queried_domain){
+                    Some(ns_records) => Some(ns_records.to_owned()),
+                    None => None
+                }
             }
             QueryType::MX => match self.get_mx_records() {
                 Some(records) => Some(
@@ -192,15 +189,15 @@ impl DomainDatabase {
                 None => None,
             },
         };
-        match query_vec{
+        match query_vec {
             Some(vec) => {
-                if vec.is_empty(){
+                if vec.is_empty() {
                     None
-                }else{
+                } else {
                     Some(vec)
                 }
-            },
-            None => None
+            }
+            None => None,
         }
     }
 }
