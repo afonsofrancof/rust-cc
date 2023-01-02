@@ -1,5 +1,5 @@
 #![feature(io_error_more)]
-use clap::*;
+use clap::{builder::ValueParser, *, parser::ValuesRef};
 use core::panic;
 use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
 use log4rs::{
@@ -11,15 +11,19 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
-use my_dns::{dns_structs::dns_message::{
-    DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
-}, dns_components::sr::start_sr};
+use my_dns::{
+    dns_components::sr::start_sr,
+    dns_make::dns_recv::RecvError,
+    dns_structs::dns_message::{
+        DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
+    },
+};
 use my_dns::{
     dns_make::{dns_recv, dns_send},
     dns_structs::dns_domain_name::Domain,
 };
 use rand::random;
-use std::fs;
+use std::{fs, net::SocketAddr};
 use std::{io, net::UdpSocket, time::Duration};
 use std::{ops::Add, thread};
 
@@ -48,6 +52,7 @@ pub fn main() {
             Arg::new("server_ip")
                 .short('s')
                 .long("server")
+                .num_args(1..)
                 .help("Server IP Address"),
             Arg::new("debug")
                 .action(ArgAction::SetTrue)
@@ -71,7 +76,7 @@ pub fn main() {
             level_filter = "debug";
         }
         false => {
-            level = log::LevelFilter::Error;
+            level = log::LevelFilter::Info;
             level_filter = "shy";
         }
     };
@@ -137,191 +142,31 @@ pub fn main() {
         false => 4,
     };
 
-    let server_ip: String = match arguments.get_one::<String>("server_ip") {
-        Some(ip) => ip.to_string(),
-        None => "127.0.0.1:0".to_string(),
+    let server_ips_input: ValuesRef<String> = match arguments.get_many::<String>("server_ip") {
+        Some(ips) => ips.to_owned(),
+        None => panic!("No IP provided"),
     };
-    
-    start_client(
-        Domain::new(domain_name.to_string()),
-        query_type,
-        flag,
-        server_ip,
-    );
 
-}
+    let mut server_ips_vec: Vec<SocketAddr> = Vec::new();
 
-pub fn start_client(
-    domain_name: Domain,
-    query_type: QueryType,
-    flag: u8,
-    server_ip: String,
-) -> DNSMessage {
+    for server_ip in server_ips_input.into_iter() {
+        let addr_vec = server_ip.split(':').collect::<Vec<_>>();
+        let new_ip_address = if addr_vec.len()==1 {
+            addr_vec[0].to_string().add(":").add("5353")
+        } else {
+            server_ip.to_string()
+        };
+        let server_ip_socket_addr = match new_ip_address.parse(){
+           Ok(ip) => ip,
+           Err(_err) => panic!("Malformed server ip {}",server_ip.to_string())
+        };
+        server_ips_vec.push(server_ip_socket_addr)
+    }
     // Construir a mensagem de DNS a ser enviada e dar serialize
-    let mut dns_message = query_builder(domain_name, query_type, flag);
+    let mut dns_message = query_builder(Domain::new(domain_name.to_string()), query_type, flag);
     info!("EV @ dns-msg-created");
 
-    // Inicializar a socket UDP
-    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.set_read_timeout(Some(Duration::new(1, 0))).unwrap();
-    socket.set_write_timeout(Some(Duration::new(1, 0))).unwrap();
-
-    let _size_sent = match dns_send::send(dns_message.to_owned(), &socket, server_ip.to_owned()) {
-        Ok(size_sent) => {
-            info!(
-                "QE {} dns-msg-sent: {}",
-                server_ip.to_owned(),
-                dns_message.to_owned().get_string()
-            );
-            size_sent
-        }
-        Err(err) => {
-            error!("TO {} invalid-socket-address", server_ip.to_owned());
-            panic!("{err}");
-        }
-    };
-
-    let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
-        Ok(response) => response,
-        Err(err) => match err {
-            IOError => {
-                error!("TO {} invalid-socket-address", server_ip.to_owned());
-                panic!("Receiving Query Answer");
-            }
-            DeserializeError => {
-                error!("ER {} could-not-decode", server_ip.to_owned());
-                panic!("Receiving Query Answer");
-            }
-        },
-    };
-    info!(
-        "RR {} dns-msg-received: {}",
-        server_ip.to_owned(),
-        dns_recv_message.get_string()
-    );
-
-    match receive_client(&mut dns_message, dns_recv_message, &socket) {
-        Ok(msg) => {
-            info!(
-                "RR {} dns-msg-received: {}",
-                server_ip.to_owned(),
-                msg.get_string()
-            );
-            info!("SP 127.0.0.1 received-final-answer");
-            println!("{}",msg.get_string());
-            msg
-        }
-        Err(err) => {
-            error!("SP 127.0.0.1 {}", err);
-            panic!("Received Invalid Answer")
-        }
-    }
-}
-
-fn receive_client(
-    dns_message: &mut DNSMessage,
-    dns_recv_message: DNSMessage,
-    socket: &UdpSocket,
-) -> Result<DNSMessage, &'static str> {
-    let mut return_message = Ok(DNSMessage::new());
-    if let Some(response_code) = dns_recv_message.header.response_code {
-        match response_code {
-            // Codigo 0 => Mensagem de resposta valida
-            0 => {
-                info!("EV @ valid-dns-msg-received");
-                return_message = Ok(dns_recv_message.clone());
-            }
-            // Codigo 1 =>  domínio existe mas não foi obtida a resposta de um servidor de autoridade
-            1 => match dns_recv_message.data.authorities_values {
-                // Existe pelo menos um servidor de autoridade para o dominio na resposta recebida
-                Some(ref auth_values) => {
-                    info!("EV @ non-authoritative-msg-received");
-                    let mut new_ip;
-                    for val in auth_values {
-                        // Verificar se o valor do servidor de autoridade é um IP ou um nome
-                        if !val.value.chars().all(|c| {
-                            vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
-                        }) {
-                            // Procurar o IP do servidor de autoridade na lista de valores extra
-                            new_ip = match dns_recv_message.data.extra_values {
-                                // Procurar na lista de valores extra o IP do servidor de autoridade
-                                Some(ref extra_values) => {
-                                    match extra_values.iter().clone().find(|extra| {
-                                        extra.domain_name == Domain::new(val.value.to_string())
-                                    }) {
-                                        Some(ns) => ns.value.to_owned(),
-                                        None => continue,
-                                    }
-                                }
-                                // Nao foi encontrado nenhum valor extra
-                                None => "No extra values found".to_string(),
-                            };
-                        } else {
-                            new_ip = val.value.to_owned();
-                        }
-                        let addr_vec = new_ip.split(':').collect::<Vec<_>>();
-                        let new_ip_address = match addr_vec.len() {
-                            // Formar novo IP com o IP do servidor de autoridade e a porta 5353
-                            1 => addr_vec[0].to_string().add(":").add("5353"),
-                            // Formar novo IP com o IP obtido dos extra values e a porta recebida
-                            2 => new_ip,
-                            // Nao foi encontrado um IP valido
-                            _ => {
-                                error!(
-                                    "SP 127.0.0.1 received-malformed-ip: {}",
-                                    val.domain_name.to_string()
-                                );
-                                panic!("Malformed IP on {}", val.domain_name.to_string());
-                            }
-                        };
-
-                        // Enviar a query para o novo IP
-                        let _size_sent = match dns_send::send(
-                            dns_message.to_owned(),
-                            &socket,
-                            new_ip_address.to_owned(),
-                        ) {
-                            Ok(size_sent) => {
-                                info!("QE {} sent-new-query", new_ip_address.to_owned());
-                                size_sent
-                            }
-                            Err(err) => {
-                                error!("TO {} invalid-socket-address", new_ip_address.to_owned());
-                                panic!("{err}");
-                            }
-                        };
-
-                        // Receber a resposta
-                        let (dns_recv_message_new, _src_addr) = match dns_recv::recv(&socket) {
-                            Ok(response) => {
-                                info!(
-                                    "RR {} dns-msg-received: {}",
-                                    new_ip_address.to_owned(),
-                                    response.0.get_string()
-                                );
-                                response
-                            }
-                            Err(err) => match err {
-                                IOError => continue,
-                                DeserializeError => {
-                                    error!("ER {} could-not-decode", new_ip_address.to_owned());
-                                    panic!("Could not deserialize received message")
-                                }
-                            },
-                        };
-                        // Recomecar o processo de verificar a resposta
-                        return_message = receive_client(dns_message, dns_recv_message_new, &socket);
-                        break;
-                    }
-                }
-                None => {}
-            },
-            2 => return Err("domain-not-found"),
-            3 => return Err("malformed-query"),
-            _ => return Err("response-code-invalid"),
-        }
-    }
-    return_message
+    let response = start_sr(&mut dns_message, server_ips_vec, true);
 }
 
 fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
