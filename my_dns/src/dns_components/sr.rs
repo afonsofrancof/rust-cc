@@ -37,10 +37,10 @@ pub fn start_sr(
     if !supports_recursive {
         dns_query.header.flags -= 2
     };
-        println!("DEBUG");
+
+    if server_list.is_empty() { return Err("Empty server list provided") };
 
     for server_ip in server_list {
-        println!("DEBUG");
         let _size_sent = match dns_send::send(dns_query.to_owned(), &socket, server_ip.to_string())
         {
             Ok(size_sent) => size_sent,
@@ -48,7 +48,6 @@ pub fn start_sr(
                 panic!("{err}");
             }
         };
-        println!("DEBUG");
 
         let (dns_recv_message, _src_addr) = match dns_recv::recv(&socket) {
             Ok(response) => response,
@@ -64,8 +63,7 @@ pub fn start_sr(
                 }
             },
         };
-        
-        println!("DEBUG");
+
 
         match eval_and_respond(dns_query, dns_recv_message, &socket) {
             Ok(msg) => {
@@ -83,7 +81,7 @@ pub fn start_sr(
             }
         }
     }
-    return Err("Empty server list passed to SR");
+    return Err("No servers answered your query");
 }
 
 fn eval_and_respond(
