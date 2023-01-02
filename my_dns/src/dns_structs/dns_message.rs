@@ -1,7 +1,8 @@
+use log::{error, debug};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, net::SocketAddr, ops::Add};
 
-use super::dns_domain_name::Domain;
+use super::{dns_domain_name::Domain, domain_database_struct::DomainDatabase};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DNSMessage {
@@ -65,6 +66,60 @@ impl DNSMessage {
         res.push_str(self.data.get_string().as_str());
         res
     }
+
+    pub fn get_authorities_ip(&self, entries: Option<Vec<DNSEntry>>,queried_domain:Domain,list_of_authorities:Vec<DNSEntry>) -> Option<Vec<SocketAddr>> {
+        let mut ip_vec: Vec<SocketAddr> = Vec::new();
+        let mut new_ip;
+        for val in list_of_authorities{
+            // Verificar se o valor do servidor de autoridade é um IP ou um nome
+            if !val
+                .value
+                .chars()
+                .all(|c| vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c))
+            {
+                // Procurar o IP do servidor de autoridade na lista de valores extra
+                new_ip =
+                    match entries {
+                        // Procurar na lista de valores extra o IP do servidor de autoridade
+                        Some(ref extra_values) => {
+                            match extra_values.iter().clone().find(|extra| {
+                                extra.domain_name == Domain::new(val.value.to_string())
+                            }) {
+                                Some(ns) => ns.value.to_owned(),
+                                None => continue,
+                            }
+                        }
+                        // Nao foi encontrado nenhum valor extra
+                        None => "No A records found to translate".to_string(),
+                    };
+            } else {
+                new_ip = val.value.to_owned();
+            }
+            let addr_vec = new_ip.split(':').collect::<Vec<_>>();
+            let new_ip_address = match addr_vec.len() {
+                // Formar novo IP com o IP do servidor de autoridade e a porta 5353
+                1 => addr_vec[0].to_string().add(":").add("5353"),
+                // Formar novo IP com o IP obtido dos extra values e a porta recebida
+                2 => new_ip,
+                // Nao foi encontrado um IP valido
+                _ => {
+                    error!(
+                        "FL @ malformed-ip {} {}",
+                        val.domain_name.to_string(),
+                        queried_domain.to_string()
+                    );
+                    panic!("Malformed IP on {}", val.domain_name.to_string());
+                }
+            };
+            debug!(
+                "EV @ ns-ip-found {} {}",
+                new_ip_address,
+                queried_domain.to_string()
+            );
+            ip_vec.push(new_ip_address.parse().unwrap());
+        }
+        if ip_vec.is_empty() {return None} else {return Some(ip_vec)}
+    }
 }
 
 impl DNSMessageHeaders {
@@ -87,6 +142,7 @@ impl DNSMessageHeaders {
     // Q+R => 1 1 0 = 6
     pub fn decode_flags(&self) -> Result<&str, &'static str> {
         match self.flags {
+            0 => Ok(""),
             1 => Ok("A"),
             2 => Ok("R"),
             4 => Ok("Q"),
@@ -152,7 +208,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.replace_range(sb.len()-1..sb.len(), ";")
+                    sb.replace_range(sb.len() - 1..sb.len(), ";")
                 };
                 sb
             }
@@ -169,7 +225,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.replace_range(sb.len()-1..sb.len(), ";")
+                    sb.replace_range(sb.len() - 1..sb.len(), ";")
                 };
                 sb
             }
@@ -186,7 +242,7 @@ impl DNSMessageData {
                     sb.push_str(entry.as_str());
                 }
                 if sb.len() > 0 {
-                    sb.replace_range(sb.len()-1..sb.len(), ";")
+                    sb.replace_range(sb.len() - 1..sb.len(), ";")
                 };
                 sb
             }

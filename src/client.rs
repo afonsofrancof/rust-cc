@@ -12,7 +12,7 @@ use log4rs::{
 };
 use my_dns::dns_structs::dns_domain_name::Domain;
 use my_dns::{
-    dns_components::sr::start_sr,
+    dns_components::sr::resolver,
     dns_structs::dns_message::{
         DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
     },
@@ -157,7 +157,7 @@ pub fn main() {
     let mut dns_message = query_builder(Domain::new(domain_name.to_string()), query_type, flag);
     info!("EV @ dns-msg-created");
 
-    let answer = start_sr(&mut dns_message, server_ips_vec, true);
+    let answer = resolver(&mut dns_message, server_ips_vec, true);
 
     let check_answer = match answer {
         Ok(acceptable) => {
@@ -203,53 +203,99 @@ pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DN
 
 fn print_dns_message(message: DNSMessage) {
     println!("DNS Message:");
+
+    let number_of_values = match message.header.number_of_values {
+        Some(n) => n,
+        None => 0, // provide a default value for number_of_values
+    };
+
+    let number_of_authorities = match message.header.number_of_authorities {
+        Some(n) => n,
+        None => 0, // provide a default value for number_of_authorities
+    };
+
+    let number_of_extra_values = match message.header.number_of_extra_values {
+        Some(n) => n,
+        None => 0, // provide a default value for number_of_extra_values
+    };
+
     println!(
-        "{}, {}, {}, {}, {}, {}",
+        "{} {} {} {} {}, {}",
         message.header.message_id,
-        message.header.flags.decode_flags().unwrap(),
+        message.header.flags,
         message.header.response_code.unwrap(),
-        message.header.number_of_values.unwrap(),
-        message.header.number_of_authorities.unwrap(),
-        message.header.number_of_extra_values.unwrap()
+        number_of_values,
+        number_of_authorities,
+        number_of_extra_values
     );
 
-    println!("  Response Values:");
+    println!("\tResponse Values:");
     if let Some(response_values) = message.data.response_values {
         for value in response_values {
-            println!(
-                "{}, {}, {}, {}, {}",
-                value.domain_name.to_string(),
-                value.type_of_value,
-                value.value,
-                value.ttl,
-                value.priority.unwrap()
-            );
+            if value.priority.is_some() {
+                println!(
+                    "\t\t{} {} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl,
+                    value.priority.unwrap()
+                )
+            } else {
+                println!(
+                    "\t\t{} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl
+                )
+            };
         }
     }
-    println!("  Authorities Values:");
+    println!("\tAuthorities Values:");
     if let Some(authorities_values) = message.data.authorities_values {
         for value in authorities_values {
-            println!(
-                "{}, {}, {}, {}, {}",
-                value.domain_name.to_string(),
-                value.type_of_value,
-                value.value,
-                value.ttl,
-                value.priority.unwrap()
-            );
+            if value.priority.is_some() {
+                println!(
+                    "\t\t{} {} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl,
+                    value.priority.unwrap()
+                )
+            } else {
+                println!(
+                    "\t\t{} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl
+                )
+            };
         }
     }
-    println!("  Extra Values:");
+    println!("\tExtra Values:");
     if let Some(extra_values) = message.data.extra_values {
         for value in extra_values {
-            println!(
-                "{}, {}, {}, {}, {}",
-                value.domain_name.to_string(),
-                value.type_of_value,
-                value.value,
-                value.ttl,
-                value.priority.unwrap()
-            );
+            if value.priority.is_some() {
+                println!(
+                    "\t\t{} {} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl,
+                    value.priority.unwrap()
+                )
+            } else {
+                println!(
+                    "\t\t{} {} {} {}",
+                    value.domain_name.to_string(),
+                    value.type_of_value,
+                    value.value,
+                    value.ttl
+                )
+            };
         }
     }
 }

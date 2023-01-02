@@ -1,7 +1,7 @@
 extern crate rustcc;
 
 use my_dns::{
-    dns_components::sr::start_sr,
+    dns_components::sr::resolver,
     dns_parse::server_config_parse,
     dns_structs::{
         dns_domain_name::Domain,
@@ -24,7 +24,7 @@ fn test_client_server() {
         let server_list :Vec<SocketAddr> = vec![SocketAddr::from_str(&"0.0.0.0:5454".to_string()).unwrap()];
         let mut query =
             client::query_builder(Domain::new("www.example.com".to_string()), QueryType::A, 4);
-        start_sr(
+        resolver(
             &mut query,
             server_list,
             true,

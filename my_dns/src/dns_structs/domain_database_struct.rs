@@ -94,16 +94,21 @@ impl DomainDatabase {
         }
     }
     pub fn add_dns_message(&mut self, dns_message: DNSMessage) {
-        if let Some(auth_vals) = dns_message.data.authorities_values {
-            for entry in auth_vals{
-               self.add_ns_record(entry.domain_name.to_owned(), entry.to_owned());
-            }
-        }
         if let Some(response) = dns_message.data.response_values{
             for entry in response{
                 match entry.type_of_value.as_str() {
-                    "CNAME" => self.add_a_record(entry),
+                    "A" => self.add_a_record(entry) ,
+                    "NS" => self.add_ns_record(entry.domain_name.to_owned(),entry),
+                    "MX" => self.add_mx_record(entry),
+                    "CNAME" => self.add_cname_record(entry),
+                    "PTR" => self.add_ptr_record(entry),
+                    _ => panic!("Invalid Query Type")
                 }
+            }
+        }
+        if let Some(extras) = dns_message.data.extra_values{
+            for entry in extras{
+                self.add_a_record(entry);
             }
         }
     }

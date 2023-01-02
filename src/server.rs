@@ -11,7 +11,7 @@ use log4rs::{
     filter::threshold::ThresholdFilter,
 };
 use my_dns::{
-    dns_components::{sp::db_sync_listener, sr::start_sr, ss::db_sync},
+    dns_components::{sp::db_sync_listener, sr::resolver, ss::db_sync},
     dns_parse::domain_database_parse::parse_root_servers,
     dns_structs::{dns_domain_name::Domain, server_config::DomainConfig},
 };
@@ -230,7 +230,7 @@ fn client_handler(
     };
 
     // Acquire a lock on the database
-    let database_map = database_mutex.lock().unwrap();
+    let mut database_map = database_mutex.lock().unwrap();
 
     //Check if there is any parent domain of the queried domain on our database
     let is_parent_cached = database_map
@@ -244,7 +244,8 @@ fn client_handler(
             queried_domain.to_string()
         );
         //Find the database for the highest level parent domain
-        let (parent_domain_name, parent_db) = database_map
+        let db_clone = database_map.clone();
+        let (parent_domain_name, parent_db) = db_clone
             .iter()
             .clone()
             .filter(|(dn, _domain_db)| queried_domain.is_subdomain_of(dn.to_owned()))
@@ -322,61 +323,42 @@ fn client_handler(
                 if dns_message.header.flags == 6 {
                     //Recursive
                     //Call SR
-                    let mut ip_vec: Vec<SocketAddr> = Vec::new();
-                    let mut new_ip;
-                    for val in queried_domain_ns.unwrap() {
-                        // Verificar se o valor do servidor de autoridade é um IP ou um nome
-                        if !val.value.chars().all(|c| {
-                            vec!['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].contains(&c)
-                        }) {
-                            // Procurar o IP do servidor de autoridade na lista de valores extra
-                            new_ip = match parent_db.get_a_records() {
-                                // Procurar na lista de valores extra o IP do servidor de autoridade
-                                Some(ref extra_values) => {
-                                    match extra_values.iter().clone().find(|extra| {
-                                        extra.domain_name == Domain::new(val.value.to_string())
-                                    }) {
-                                        Some(ns) => ns.value.to_owned(),
-                                        None => continue,
-                                    }
+                    match queried_domain_ns {
+                        Some(ns_vec) => {
+                            let ip_vec = match DNSMessage::get_authorities_ip(
+                                &dns_message,
+                                parent_db.get_a_records(),
+                                queried_domain,
+                                ns_vec,
+                            ) {
+                                Some(vec) => vec,
+                                None => {
+                                    panic!("No NS found for the queried domain, cannot get answer")
                                 }
-                                // Nao foi encontrado nenhum valor extra
-                                None => "No A records found to translate".to_string(),
                             };
-                        } else {
-                            new_ip = val.value.to_owned();
+                            let dns_response =
+                                match resolver(&mut dns_message, ip_vec, supports_recursive) {
+                                    Ok(message) => message,
+                                    Err(err) => panic!("{err}"),
+                                };
+                            match database_map.contains_key(&dns_response.data.query_info.name) {
+                                true => database_map
+                                    .get_mut(&dns_response.data.query_info.name)
+                                    .unwrap()
+                                    .add_dns_message(dns_response.clone()),
+                                false => {
+                                    let mut db = DomainDatabase::new();
+                                    db.add_dns_message(dns_response.clone());
+                                    database_map
+                                        .insert(dns_response.data.query_info.name.clone(), db);
+                                }
+                            };
+                            send_answer(dns_response, src_addr);
+                            return;
+                            //Return
                         }
-                        let addr_vec = new_ip.split(':').collect::<Vec<_>>();
-                        let new_ip_address = match addr_vec.len() {
-                            // Formar novo IP com o IP do servidor de autoridade e a porta 5353
-                            1 => addr_vec[0].to_string().add(":").add("5353"),
-                            // Formar novo IP com o IP obtido dos extra values e a porta recebida
-                            2 => new_ip,
-                            // Nao foi encontrado um IP valido
-                            _ => {
-                                error!(
-                                    "FL @ malformed-ip {} {}",
-                                    val.domain_name.to_string(),
-                                    queried_domain.to_string()
-                                );
-                                panic!("Malformed IP on {}", val.domain_name.to_string());
-                            }
-                        };
-                        debug!(
-                            "EV @ ns-ip-found {} {}",
-                            new_ip_address,
-                            queried_domain.to_string()
-                        );
-                        ip_vec.push(new_ip_address.parse().unwrap());
-                    }
-                    let dns_response = match start_sr(&mut dns_message, ip_vec, supports_recursive)
-                    {
-                        Ok(message) => message,
-                        Err(err) => panic!("{err}"),
+                        _ => (),
                     };
-                    send_answer(dns_response, src_addr);
-                    return;
-                    //Return
                 }
             } else {
                 debug!(
@@ -390,10 +372,21 @@ fn client_handler(
                     dns_message.header.response_code = Some(2);
                 } else {
                     let dns_response =
-                        match start_sr(&mut dns_message, root_servers, supports_recursive) {
+                        match resolver(&mut dns_message, root_servers, supports_recursive) {
                             Ok(message) => message,
                             Err(err) => panic!("{err}"),
                         };
+                    match database_map.contains_key(&dns_response.data.query_info.name) {
+                        true => database_map
+                            .get_mut(&dns_response.data.query_info.name)
+                            .unwrap()
+                            .add_dns_message(dns_response.clone()),
+                        false => {
+                            let mut db = DomainDatabase::new();
+                            db.add_dns_message(dns_response.clone());
+                            database_map.insert(dns_response.data.query_info.name.clone(), db);
+                        }
+                    };
                     send_answer(dns_response, src_addr);
                     return;
                 }
@@ -485,11 +478,22 @@ fn client_handler(
         }
     } else {
         //Answer is not cached
-        let dns_recv_message = match start_sr(&mut dns_message, root_servers, supports_recursive) {
+        let dns_response = match resolver(&mut dns_message, root_servers, supports_recursive) {
             Ok(message) => message,
             Err(err) => panic!("{err}"),
         };
-        dns_message = dns_recv_message;
+        match database_map.contains_key(&dns_response.data.query_info.name) {
+            true => database_map
+                .get_mut(&dns_response.data.query_info.name)
+                .unwrap()
+                .add_dns_message(dns_response.clone()),
+            false => {
+                let mut db = DomainDatabase::new();
+                db.add_dns_message(dns_response.clone());
+                database_map.insert(dns_response.data.query_info.name.clone(), db);
+            }
+        };
+        dns_message = dns_response;
     };
 
     send_answer(dns_message, src_addr);

@@ -11,9 +11,9 @@ TTL DEFAULT 86400
 @ SOAEXPIRE 604800 TTL
 
 #MY NS
-in-addr.reverse. NS in-addr.reverse. TTL
+in-addr.reverse. NS orca TTL
 
 #SUBDOMAIN NS
-10.in-addr.reverse. NS in-addr.reverse. TTL
+10.in-addr.reverse. NS orca TTL
 
-in-addr.reverse A 10.3.3.1 TTL
+orca A 10.3.3.1 TTL
