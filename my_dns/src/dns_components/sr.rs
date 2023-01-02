@@ -52,11 +52,6 @@ pub fn start_sr(
                 }
             },
         };
-        info!(
-            "RR {} dns-msg-received: {}",
-            server_ip.to_owned(),
-            dns_recv_message.get_string()
-        );
 
         match eval_and_respond(dns_query, dns_recv_message, &socket) {
             Ok(msg) => {
@@ -86,8 +81,8 @@ fn eval_and_respond(
     if let Some(response_code) = dns_recv_message.header.response_code {
         match response_code {
             // Codigo 0 => Mensagem de resposta valida
-            0 => {
-                debug!("EV @ valid-dns-msg-received");
+            // Codigo 2 => domínio não existe.
+            0 | 2 => {
                 return_message = Ok(dns_recv_message.clone());
             }
             // Codigo 1 =>  domínio existe mas não foi obtida a resposta de um servidor de autoridade
