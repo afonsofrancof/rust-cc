@@ -14,7 +14,9 @@ TTL DEFAULT 86400
 
 official. NS servidor2.official. TTL
 monitor. NS foca.monitor. TTL
+reverse. NS orca.reverse. TTL
 
 servidor1. A 10.2.2.1 TTL
 servidor2.official. A 10.2.2.2 TTL
 foca.monitor. A 10.3.3.3 TTL
+orca.reverse. A 10.3.3.2 TTL

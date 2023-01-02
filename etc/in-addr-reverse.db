@@ -1,0 +1,19 @@
+# DNS database file for the in-addr.reverse. domain 
+
+@ DEFAULT in-addr.reverse.
+TTL DEFAULT 86400
+
+@ SOASP in-addr.reverse. TTL
+@ SOAADMIN dns\.admin.in-addr.reverse. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+#MY NS
+in-addr.reverse. NS in-addr.reverse. TTL
+
+#SUBDOMAIN NS
+10.in-addr.reverse. NS in-addr.reverse. TTL
+
+in-addr.reverse A 10.3.3.1 TTL

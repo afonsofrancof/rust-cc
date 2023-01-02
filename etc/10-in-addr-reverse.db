@@ -1,0 +1,19 @@
+# DNS database file for the 10.in-addr.reverse. domain 
+
+@ DEFAULT 10.in-addr.reverse.
+TTL DEFAULT 86400
+
+@ SOASP 10.in-addr.reverse. TTL
+@ SOAADMIN dns\.admin.10.in-addr.reverse. 200
+@ SOASERIAL 0117102022 TTL
+@ SOAREFRESH 14400 TTL
+@ SOARETRY 3600 TTL
+@ SOAEXPIRE 604800 TTL
+
+#MY NS
+10.in-addr.reverse. NS orca TTL
+
+orca A 10.3.3.1 TTL
+
+2.3.3.10.in-addr.reverse. PTR golfinho.example.official. TTL
+1.3.3.10.in-addr.reverse. PTR www.example.official. TTL
