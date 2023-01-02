@@ -11,7 +11,7 @@ use my_dns::{
     },
 };
 use rustcc::{client, server};
-use std::{collections::HashMap, net::SocketAddr, thread, time::Duration};
+use std::{net::SocketAddr, thread, time::Duration, str::FromStr};
 
 #[test]
 fn test_client_server() {
@@ -21,11 +21,12 @@ fn test_client_server() {
     });
     thread::sleep(Duration::new(1, 0));
     let client = thread::spawn(move || {
+        let server_list :Vec<SocketAddr> = vec![SocketAddr::from_str(&"0.0.0.0:5454".to_string()).unwrap()];
         let mut query =
             client::query_builder(Domain::new("www.example.com".to_string()), QueryType::A, 4);
         start_sr(
             &mut query,
-            vec!["127.0.0.1:5454".to_string().parse().unwrap()],
+            server_list,
             true,
         )
     });

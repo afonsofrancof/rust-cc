@@ -1,5 +1,4 @@
-#![feature(io_error_more)]
-use clap::{builder::ValueParser, *, parser::ValuesRef};
+use clap::{parser::ValuesRef, *};
 use core::panic;
 use log::{debug, error, info, LevelFilter};
 use log4rs::{
@@ -11,21 +10,16 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     filter::threshold::ThresholdFilter,
 };
+use my_dns::dns_structs::dns_domain_name::Domain;
 use my_dns::{
     dns_components::sr::start_sr,
-    dns_make::dns_recv::RecvError,
     dns_structs::dns_message::{
         DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
     },
 };
-use my_dns::{
-    dns_make::{dns_recv, dns_send},
-    dns_structs::dns_domain_name::Domain,
-};
 use rand::random;
-use std::{fs, net::SocketAddr};
-use std::{io, net::UdpSocket, time::Duration};
-use std::{ops::Add, thread};
+use std::net::SocketAddr;
+use std::ops::Add;
 
 pub fn main() {
     // Argumentos do CLI
@@ -61,7 +55,6 @@ pub fn main() {
                 .help("Debug Mode"),
         ])
         .get_matches();
-
 
     // Logging
     // Caso o modo debug esteja ativo, o log é escrito para o terminal
@@ -114,7 +107,7 @@ pub fn main() {
     // Inicializar o logger.
     let _handle = log4rs::init_config(config).unwrap();
     info!("ST 127.0.0.1 53 TTL {level_filter}");
-    debug!("EV @ log-file-create {}",log_file_path);
+    debug!("EV @ log-file-create {}", log_file_path);
 
     let domain_name = arguments.get_one::<String>("domain").unwrap();
 
@@ -149,14 +142,14 @@ pub fn main() {
 
     for server_ip in server_ips_input.into_iter() {
         let addr_vec = server_ip.split(':').collect::<Vec<_>>();
-        let new_ip_address = if addr_vec.len()==1 {
+        let new_ip_address = if addr_vec.len() == 1 {
             addr_vec[0].to_string().add(":").add("5353")
         } else {
             server_ip.to_string()
         };
-        let server_ip_socket_addr = match new_ip_address.parse(){
-           Ok(ip) => ip,
-           Err(_err) => panic!("Malformed server ip {}",server_ip.to_string())
+        let server_ip_socket_addr = match new_ip_address.parse() {
+            Ok(ip) => ip,
+            Err(_err) => panic!("Malformed server ip {}", server_ip.to_string()),
         };
         server_ips_vec.push(server_ip_socket_addr)
     }
@@ -164,7 +157,21 @@ pub fn main() {
     let mut dns_message = query_builder(Domain::new(domain_name.to_string()), query_type, flag);
     info!("EV @ dns-msg-created");
 
-    let response = start_sr(&mut dns_message, server_ips_vec, true);
+    let answer = start_sr(&mut dns_message, server_ips_vec, true);
+
+    let check_answer = match answer {
+        Ok(acceptable) => {
+            info!("EV @ dns-msg-received");
+            acceptable
+        }
+        Err(err) => {
+            error!("EV @ {}", err);
+            error!("SP 127.0.0.1 dns-msg-receive-error");
+            panic!("Error receiving answer");
+        }
+    };
+
+    print_dns_message(check_answer);
 }
 
 pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
@@ -192,4 +199,57 @@ pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DN
     };
 
     return dns_message;
+}
+
+fn print_dns_message(message: DNSMessage) {
+    println!("DNS Message:");
+    println!(
+        "{}, {}, {}, {}, {}, {}",
+        message.header.message_id,
+        message.header.flags.decode_flags().unwrap(),
+        message.header.response_code.unwrap(),
+        message.header.number_of_values.unwrap(),
+        message.header.number_of_authorities.unwrap(),
+        message.header.number_of_extra_values.unwrap()
+    );
+
+    println!("  Response Values:");
+    if let Some(response_values) = message.data.response_values {
+        for value in response_values {
+            println!(
+                "{}, {}, {}, {}, {}",
+                value.domain_name.to_string(),
+                value.type_of_value,
+                value.value,
+                value.ttl,
+                value.priority.unwrap()
+            );
+        }
+    }
+    println!("  Authorities Values:");
+    if let Some(authorities_values) = message.data.authorities_values {
+        for value in authorities_values {
+            println!(
+                "{}, {}, {}, {}, {}",
+                value.domain_name.to_string(),
+                value.type_of_value,
+                value.value,
+                value.ttl,
+                value.priority.unwrap()
+            );
+        }
+    }
+    println!("  Extra Values:");
+    if let Some(extra_values) = message.data.extra_values {
+        for value in extra_values {
+            println!(
+                "{}, {}, {}, {}, {}",
+                value.domain_name.to_string(),
+                value.type_of_value,
+                value.value,
+                value.ttl,
+                value.priority.unwrap()
+            );
+        }
+    }
 }
