@@ -169,7 +169,7 @@ pub fn main() {
     let response = start_sr(&mut dns_message, server_ips_vec, true);
 }
 
-fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
+pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
     let dns_query_info = DNSQueryInfo {
         name: domain_name,
         type_of_value: query_type,
