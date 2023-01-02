@@ -1,5 +1,5 @@
 use super::dns_domain_name::Domain;
-use super::dns_message::{DNSEntry, QueryType};
+use super::dns_message::{DNSEntry, DNSMessage, QueryType};
 use crate::dns_parse::domain_database_parse;
 use std::{collections::HashMap, ops::Add};
 
@@ -93,6 +93,20 @@ impl DomainDatabase {
             }
         }
     }
+    pub fn add_dns_message(&mut self, dns_message: DNSMessage) {
+        if let Some(auth_vals) = dns_message.data.authorities_values {
+            for entry in auth_vals{
+               self.add_ns_record(entry.domain_name.to_owned(), entry.to_owned());
+            }
+        }
+        if let Some(response) = dns_message.data.response_values{
+            for entry in response{
+                match entry.type_of_value.as_str() {
+                    "CNAME" => self.add_a_record(entry),
+                }
+            }
+        }
+    }
 
     pub fn add_a_record(&mut self, entry: DNSEntry) {
         match &mut self.a_records {
@@ -153,9 +167,9 @@ impl DomainDatabase {
             },
             QueryType::NS => {
                 let records = self.get_ns_records();
-                match records.get(&queried_domain){
+                match records.get(&queried_domain) {
                     Some(ns_records) => Some(ns_records.to_owned()),
-                    None => None
+                    None => None,
                 }
             }
             QueryType::MX => match self.get_mx_records() {
