@@ -1,5 +1,5 @@
-#![feature(io_error_more)]
-use clap::{builder::ValueParser, *, parser::ValuesRef};
+
+use clap::{*, parser::ValuesRef};
 use core::panic;
 use log::{debug, error, info, LevelFilter};
 use log4rs::{
@@ -13,19 +13,16 @@ use log4rs::{
 };
 use my_dns::{
     dns_components::sr::start_sr,
-    dns_make::dns_recv::RecvError,
     dns_structs::dns_message::{
         DNSMessage, DNSMessageData, DNSMessageHeaders, DNSQueryInfo, QueryType,
     },
 };
 use my_dns::{
-    dns_make::{dns_recv, dns_send},
     dns_structs::dns_domain_name::Domain,
 };
 use rand::random;
-use std::{fs, net::SocketAddr};
-use std::{io, net::UdpSocket, time::Duration};
-use std::{ops::Add, thread};
+use std::net::SocketAddr;
+use std::ops::Add;
 
 pub fn main() {
     // Argumentos do CLI
@@ -164,7 +161,21 @@ pub fn main() {
     let mut dns_message = query_builder(Domain::new(domain_name.to_string()), query_type, flag);
     info!("EV @ dns-msg-created");
 
-    let response = start_sr(&mut dns_message, server_ips_vec, true);
+    let answer = start_sr(&mut dns_message, server_ips_vec, true);
+
+    let check_answer = match answer {
+        Ok(acceptable) => {
+            info!("EV @ dns-msg-received");
+            acceptable
+        },
+        Err(err) => {
+            error!("EV @ {}", err);
+            error!("SP 127.0.0.1 dns-msg-receive-error");
+            panic!("Error receiving answer");
+        },
+    };
+
+    print_dns_message(check_answer);
 }
 
 pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DNSMessage {
@@ -192,4 +203,47 @@ pub fn query_builder(domain_name: Domain, query_type: QueryType, flag: u8) -> DN
     };
 
     return dns_message;
+}
+
+fn print_dns_message(message: DNSMessage) {
+    println!("DNS Message:");
+    println!("  Message ID: {}", message.header.message_id);
+    println!("  Flags: {}", message.header.flags);
+    println!("  Response Code: {:?}", message.header.response_code);
+    println!("  Number of Values: {:?}", message.header.number_of_values);
+    println!("  Number of Authorities: {:?}", message.header.number_of_authorities);
+    println!("  Number of Extra Values: {:?}", message.header.number_of_extra_values);
+    println!("  Query Info:");
+    println!("    Name: {}", message.data.query_info.name.to_string());
+    println!("    Type of Value: {:?}", message.data.query_info.type_of_value);
+    println!("  Response Values:");
+    if let Some(response_values) = message.data.response_values {
+        for value in response_values {
+            println!("    Domain Name: {}", value.domain_name.to_string());
+            println!("    Type of Value: {}", value.type_of_value);
+            println!("    Value: {}", value.value);
+            println!("    TTL: {}", value.ttl);
+            println!("    Priority: {:?}", value.priority);
+        }
+    }
+    println!("  Authorities Values:");
+    if let Some(authorities_values) = message.data.authorities_values {
+        for value in authorities_values {
+            println!("    Domain Name: {}", value.domain_name.to_string());
+            println!("    Type of Value: {}", value.type_of_value);
+            println!("    Value: {}", value.value);
+            println!("    TTL: {}", value.ttl);
+            println!("    Priority: {:?}", value.priority);
+        }
+    }
+    println!("  Extra Values:");
+    if let Some(extra_values) = message.data.extra_values {
+        for value in extra_values {
+            println!("    Domain Name: {}", value.domain_name.to_string());
+            println!("    Type of Value: {}", value.type_of_value);
+            println!("    Value: {}", value.value);
+            println!("    TTL: {}", value.ttl);
+            println!("    Priority: {:?}", value.priority);
+        }
+    }
 }
