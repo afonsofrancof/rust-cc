@@ -139,7 +139,7 @@ fn test_to_string() {
     assert_eq!(domain.to_string(), ".");
 
     domain.set_parts(vec!["example".to_string(), "com".to_string()]);
-    assert_eq!(domain.to_string(), "example.com");
+    assert_eq!(domain.to_string(), "example.com.");
 
     domain.set_parts(vec![]);
     assert_eq!(domain.to_string(), ".");
